@@ -238,6 +238,8 @@ uct_dc_mlx5_poll_tx(uct_dc_mlx5_iface_t *iface)
     if (cqe == NULL) {
         return 0;
     }
+
+handle_cqe:
     UCS_STATS_UPDATE_COUNTER(iface->super.super.super.stats,
                              UCT_IB_IFACE_STAT_TX_COMPLETION, 1);
 
@@ -262,6 +264,14 @@ uct_dc_mlx5_poll_tx(uct_dc_mlx5_iface_t *iface)
     uct_dc_mlx5_iface_progress_pending(iface,
                                        iface->tx.dcis[dci_index].pool_index);
     uct_dc_mlx5_iface_check_tx(iface);
+
+    if (iface->super.cq[UCT_IB_DIR_TX].cq_unzip.bulk_unzip) {
+        iface->super.cq[UCT_IB_DIR_TX].cq_ci++;
+        uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super.super, &iface->super.cq[UCT_IB_DIR_TX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->super.cq[UCT_IB_DIR_TX]);
+        goto handle_cqe;
+    }
+
     uct_ib_mlx5_update_db_cq_ci(&iface->super.cq[UCT_IB_DIR_TX]);
 
     return 1;

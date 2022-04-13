@@ -399,19 +399,32 @@ ucs_status_t uct_ib_mlx5_get_compact_av(uct_ib_iface_t *iface, int *compact_av)
 #endif
 
 void uct_ib_mlx5_iface_cqe_unzip_init(struct mlx5_cqe64 *title_cqe,
-                                      uct_ib_mlx5_cq_t *cq)
+                                      uct_ib_mlx5_cq_t *cq,
+                                      int bulk_unzip_limit)
 {
-    uct_ib_mlx5_cq_unzip_t *cq_unzip = &cq->cq_unzip;
-    struct mlx5_cqe64 *mini_cqe      = uct_ib_mlx5_get_cqe(cq, cq->cq_ci + 1);
+    uct_ib_mlx5_cq_unzip_t *cq_unzip      = &cq->cq_unzip;
+    uct_ib_mlx5_mini_cqe8_t *mini_arr_cqe =
+            (uct_ib_mlx5_mini_cqe8_t*)uct_ib_mlx5_get_cqe(cq, cq->cq_ci + 1);
 
-    memcpy(&cq_unzip->title, title_cqe, sizeof(cq_unzip->title));
-    memcpy(&cq_unzip->mini_arr, mini_cqe, sizeof(cq_unzip->mini_arr));
     cq_unzip->block_size    = ntohl(title_cqe->byte_cnt);
     cq_unzip->wqe_counter   = ntohs(title_cqe->wqe_counter);
     cq_unzip->title_cq_idx  = cq->cq_ci;
 
+    if (cq_unzip->block_size <= bulk_unzip_limit) { /* TODO: Add user control */
+        cq_unzip->bulk_unzip = 1;
+
+        cq_unzip->title = title_cqe;
+        cq_unzip->mini_arr = mini_arr_cqe;
+    } else {
+        memcpy(&cq_unzip->title_copy, title_cqe, sizeof(cq_unzip->title_copy));
+        memcpy(&cq_unzip->mini_arr_copy, mini_arr_cqe, sizeof(cq_unzip->mini_arr_copy));
+
+        cq_unzip->title = &cq_unzip->title_copy;
+        cq_unzip->mini_arr = cq_unzip->mini_arr_copy;
+    }
+
     /* Clear the title CQE format */
-    cq_unzip->title.op_own &= ~UCT_IB_MLX5_CQE_FORMAT_MASK;
+    cq_unzip->title->op_own &= ~UCT_IB_MLX5_CQE_FORMAT_MASK;
 }
 
 static void
@@ -441,7 +454,7 @@ struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip(uct_ib_mlx5_cq_t *cq)
     uct_ib_mlx5_cq_unzip_t *cq_unzip  = &cq->cq_unzip;
     uint8_t mini_cqe_idx              = cq_unzip->current_idx %
                                         UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE;
-    struct mlx5_cqe64 *title_cqe      = &cq_unzip->title;
+    struct mlx5_cqe64 *title_cqe      = cq_unzip->title;
     uct_ib_mlx5_mini_cqe8_t *mini_cqe = &cq_unzip->mini_arr[mini_cqe_idx];
     struct mlx5_cqe64 *cqe;
     unsigned next_arr_size;
@@ -458,7 +471,7 @@ struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip(uct_ib_mlx5_cq_t *cq)
             /* Get the next mini_cqe array */
             next_arr_size = ucs_min(sizeof(*mini_cqe) * cq_unzip->current_idx,
                                     sizeof(*cqe));
-            memcpy(&cq_unzip->mini_arr, cqe, next_arr_size);
+            memcpy(&cq_unzip->mini_arr_copy, cqe, next_arr_size);
         }
 
         /* Update opcode and CQE format in the next CQE buffer
@@ -474,16 +487,53 @@ struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip(uct_ib_mlx5_cq_t *cq)
     return title_cqe;
 }
 
+struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip_bulk(uct_ib_mlx5_cq_t *cq)
+{
+    uct_ib_mlx5_cq_unzip_t *cq_unzip  = &cq->cq_unzip;
+    uint8_t mini_cqe_idx              = cq_unzip->current_idx %
+                                        UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE;
+    struct mlx5_cqe64 *title_cqe      = cq_unzip->title;
+    uct_ib_mlx5_mini_cqe8_t *mini_cqe = &cq_unzip->mini_arr[mini_cqe_idx];
+    struct mlx5_cqe64 *cqe;
+    int i;
+
+    uct_ib_mlx5_iface_cqe_unzip_fill_unique(title_cqe, mini_cqe, cq_unzip);
+
+    cq_unzip->current_idx++;
+    if (cq_unzip->current_idx == cq_unzip->block_size) {
+        /* Update opcode in all zipped CQE buffers
+         * (title shouldn't be updated).
+         */
+        for (i = 1; i < cq_unzip->block_size; ++i) {
+            cqe = uct_ib_mlx5_get_cqe(cq, cq_unzip->title_cq_idx + i);
+            cqe->op_own = title_cqe->op_own;
+        }
+        cq_unzip->current_idx = 0;
+        cq_unzip->bulk_unzip = 0;
+    } else if (mini_cqe_idx == (UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE - 1)) {
+        /* Get the next mini_cqe array */
+        cqe = uct_ib_mlx5_get_cqe(cq, cq_unzip->title_cq_idx + 
+                                  cq_unzip->current_idx);
+        cq_unzip->mini_arr = (uct_ib_mlx5_mini_cqe8_t*)cqe;
+    }
+
+    return title_cqe;
+}
+
 struct mlx5_cqe64 *
 uct_ib_mlx5_check_completion(uct_ib_iface_t *iface, uct_ib_mlx5_cq_t *cq,
                              struct mlx5_cqe64 *cqe)
 {
     ucs_memory_cpu_load_fence();
 
-    if (uct_ib_mlx5_check_and_init_zipped(cq, cqe)) {
+    if (uct_ib_mlx5_check_and_init_zipped(cq, cqe, iface->config.bulk_unzip_limit)) {
         ++cq->cq_ci;
         uct_ib_mlx5_update_cqe_zipping_stats(iface, cq);
-        return uct_ib_mlx5_iface_cqe_unzip(cq);
+        if (cq->cq_unzip.bulk_unzip) {
+            return uct_ib_mlx5_iface_cqe_unzip_bulk(cq);
+        } else {
+            return uct_ib_mlx5_iface_cqe_unzip(cq);
+        }
     }
 
     if (cqe->op_own & UCT_IB_MLX5_CQE_OP_OWN_ERR_MASK) {

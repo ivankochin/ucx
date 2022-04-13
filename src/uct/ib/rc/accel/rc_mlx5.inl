@@ -1443,17 +1443,18 @@ uct_rc_mlx5_iface_common_poll_rx(uct_rc_mlx5_iface_common_t *iface,
     }
 
     ucs_memory_cpu_load_fence();
+handle_cqe:
     UCS_STATS_UPDATE_COUNTER(iface->super.super.stats,
                              UCT_IB_IFACE_STAT_RX_COMPLETION, 1);
 
     byte_len = ntohl(cqe->byte_cnt) & UCT_IB_MLX5_MP_RQ_BYTE_CNT_MASK;
-    count    = 1;
+    ++count;
 
     if (!(poll_flags & UCT_RC_MLX5_POLL_FLAG_TM)) {
         rc_hdr = uct_rc_mlx5_iface_common_data(iface, cqe, byte_len, &flags);
         uct_rc_mlx5_iface_common_am_handler(iface, cqe, rc_hdr, flags,
                                             byte_len, poll_flags);
-        goto out_update_db;
+        goto try_get_next_cqe;
     }
 
 #if IBV_HW_TM
@@ -1463,15 +1464,15 @@ uct_rc_mlx5_iface_common_poll_rx(uct_rc_mlx5_iface_common_t *iface,
         /* TODO: Check if cqe->app_op is valid for filler CQE. Then this check
          * could be done for specific CQE types only. */
         uct_rc_mlx5_iface_handle_filler_cqe(iface, cqe, poll_flags);
-        count = 0;
-        goto out_update_db;
+        --count;
+        goto try_get_next_cqe;
     }
 
     /* Should be a fast path, because small (latency-critical) messages
      * are not supposed to be offloaded to the HW.  */
     if (ucs_likely(cqe->app_op == UCT_RC_MLX5_CQE_APP_OP_TM_UNEXPECTED)) {
         uct_rc_mlx5_iface_tag_handle_unexp(iface, cqe, byte_len, poll_flags);
-        goto out_update_db;
+        goto try_get_next_cqe;
     }
 
     switch (cqe->app_op) {
@@ -1539,7 +1540,15 @@ uct_rc_mlx5_iface_common_poll_rx(uct_rc_mlx5_iface_common_t *iface,
     }
 #endif
 
-out_update_db:
+try_get_next_cqe:
+    if (iface->cq[UCT_IB_DIR_RX].cq_unzip.bulk_unzip) {
+        iface->cq[UCT_IB_DIR_RX].cq_ci++;
+        uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, &iface->cq[UCT_IB_DIR_RX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->cq[UCT_IB_DIR_RX]);
+        goto handle_cqe;
+    }
+
+    /*TODO: Check that there is no bulk_unzip during the out*/
     uct_ib_mlx5_update_db_cq_ci(&iface->cq[UCT_IB_DIR_RX]);
 out:
     max_batch = iface->super.super.config.rx_max_batch;

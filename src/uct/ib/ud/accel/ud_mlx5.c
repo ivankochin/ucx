@@ -483,6 +483,7 @@ uct_ud_mlx5_iface_poll_rx(uct_ud_mlx5_iface_t *iface, int is_async)
         goto out;
     }
 
+handle_cqe:
     UCS_STATS_UPDATE_COUNTER(iface->super.super.stats,
                              UCT_IB_IFACE_STAT_RX_COMPLETION, 1);
 
@@ -502,7 +503,7 @@ uct_ud_mlx5_iface_poll_rx(uct_ud_mlx5_iface_t *iface, int is_async)
                                 uct_ib_mlx5_cqe_is_grh_present(cqe),
                                 cqe->flags_rqpn & 0xFF)) {
         ucs_mpool_put_inline(desc);
-        goto out_polled;
+        goto try_get_next_cqe;
     }
 
     uct_ib_mlx5_log_rx(&iface->super.super, cqe, packet, uct_ud_dump_packet);
@@ -513,7 +514,15 @@ uct_ud_mlx5_iface_poll_rx(uct_ud_mlx5_iface_t *iface, int is_async)
             len - UCT_IB_GRH_LEN,
             (uct_ud_recv_skb_t*)ucs_unaligned_ptr(desc), is_async);
 
-out_polled:
+try_get_next_cqe:
+    if (iface->cq[UCT_IB_DIR_RX].cq_unzip.bulk_unzip) {
+        iface->cq[UCT_IB_DIR_RX].cq_ci++;
+        uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, &iface->cq[UCT_IB_DIR_RX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->cq[UCT_IB_DIR_RX]);
+        goto handle_cqe;
+    }
+
+    /*TODO: Check that there is no bulk_unzip during the out*/
     uct_ib_mlx5_update_db_cq_ci(&iface->cq[UCT_IB_DIR_RX]);
 out:
     if (iface->super.rx.available >= iface->super.super.config.rx_max_batch) {
@@ -537,6 +546,7 @@ uct_ud_mlx5_iface_poll_tx(uct_ud_mlx5_iface_t *iface, int is_async)
         return 0;
     }
 
+handle_cqe:
     UCS_STATS_UPDATE_COUNTER(iface->super.super.stats,
                              UCT_IB_IFACE_STAT_TX_COMPLETION, 1);
 
@@ -546,6 +556,14 @@ uct_ud_mlx5_iface_poll_tx(uct_ud_mlx5_iface_t *iface, int is_async)
     hw_ci                     = ntohs(cqe->wqe_counter);
     iface->super.tx.available = uct_ib_mlx5_txwq_update_bb(&iface->tx.wq, hw_ci);
 
+    if (iface->cq[UCT_IB_DIR_TX].cq_unzip.bulk_unzip) {
+        iface->cq[UCT_IB_DIR_TX].cq_ci++;
+        uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, &iface->cq[UCT_IB_DIR_TX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->cq[UCT_IB_DIR_TX]);
+        goto handle_cqe;
+    }
+
+    /*TODO: Check that there is no bulk_unzip during the out*/
     uct_ud_iface_send_completion(&iface->super, hw_ci, is_async);
     uct_ib_mlx5_update_db_cq_ci(&iface->cq[UCT_IB_DIR_TX]);
 

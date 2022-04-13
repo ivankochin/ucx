@@ -331,9 +331,12 @@ typedef struct {
  */
 typedef struct {
     /* CQE that contains the common information for all compression block */
-    struct mlx5_cqe64       title;
+    struct mlx5_cqe64       title_copy;
     /* Array of miniCQEs each of which contains unique CQE information */
-    uct_ib_mlx5_mini_cqe8_t mini_arr[UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE];
+    uct_ib_mlx5_mini_cqe8_t mini_arr_copy[UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE];
+
+    struct mlx5_cqe64*       title;
+    uct_ib_mlx5_mini_cqe8_t* mini_arr;
     /* Size of compression block */
     uint32_t                block_size;
     /* Number of unhandled CQE in compression block */
@@ -342,6 +345,8 @@ typedef struct {
     uint32_t                title_cq_idx;
     /* Title wqe counter */
     uint16_t                wqe_counter;
+    /* Unzipping seq left counter */
+    uint8_t                 bulk_unzip;
 } uct_ib_mlx5_cq_unzip_t;
 
 
@@ -591,7 +596,8 @@ ucs_status_t uct_ib_mlx5dv_arm_cq(uct_ib_mlx5_cq_t *cq, int solicited);
  * @param cq        CQ that contains the title.
  */
 void uct_ib_mlx5_iface_cqe_unzip_init(struct mlx5_cqe64 *title_cqe,
-                                      uct_ib_mlx5_cq_t *cq);
+                                      uct_ib_mlx5_cq_t *cq,
+                                      int bulk_unzip_limit);
 
 /**
  * Unzip the next CQE. Should be used only when cq_unzip->current_idx > 0.
@@ -602,6 +608,7 @@ void uct_ib_mlx5_iface_cqe_unzip_init(struct mlx5_cqe64 *title_cqe,
  * @return Next unzipped CQE.
  */
 struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip(uct_ib_mlx5_cq_t *cq);
+struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip_bulk(uct_ib_mlx5_cq_t *cq);
 
 /**
  * Check for completion.

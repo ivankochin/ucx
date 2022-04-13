@@ -76,13 +76,18 @@ uct_rc_mlx5_iface_check_rx_completion(uct_rc_mlx5_iface_common_t *iface,
     struct mlx5_err_cqe *ecqe = (void*)cqe;
     uct_ib_mlx5_srq_seg_t *seg;
     uint16_t wqe_ctr;
+    int bulk_unzip_limit = iface->super.super.config.bulk_unzip_limit;
 
     ucs_memory_cpu_load_fence();
 
-    if (uct_ib_mlx5_check_and_init_zipped(cq, cqe)) {
+    if (uct_ib_mlx5_check_and_init_zipped(cq, cqe, bulk_unzip_limit)) {
         ++cq->cq_ci;
         uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, cq);
-        return uct_ib_mlx5_iface_cqe_unzip(cq);
+        if (ucs_likely(cq->cq_unzip.bulk_unzip)) {
+            return uct_ib_mlx5_iface_cqe_unzip_bulk(cq);
+        } else {
+            return uct_ib_mlx5_iface_cqe_unzip(cq);
+        }
     }
 
     if (((ecqe->op_own >> 4) == MLX5_CQE_RESP_ERR) &&
@@ -149,6 +154,7 @@ uct_rc_mlx5_iface_poll_tx(uct_rc_mlx5_iface_common_t *iface)
         return 0;
     }
 
+handle_cqe:
     UCS_STATS_UPDATE_COUNTER(iface->super.super.stats,
                              UCT_IB_IFACE_STAT_TX_COMPLETION, 1);
 
@@ -167,6 +173,16 @@ uct_rc_mlx5_iface_poll_tx(uct_rc_mlx5_iface_common_t *iface)
     ucs_arbiter_group_schedule(&iface->super.tx.arbiter, &ep->super.arb_group);
     uct_rc_mlx5_iface_update_tx_res(&iface->super, ep, hw_ci);
     uct_rc_iface_arbiter_dispatch(&iface->super);
+
+    // POSSIBLE PERFORMANCE BOTTLENECK FOR OSU_BW EVEN WHEN CQE ZIPPING DISABLED (~5%)
+    if (iface->cq[UCT_IB_DIR_TX].cq_unzip.bulk_unzip) {
+        ++iface->cq[UCT_IB_DIR_TX].cq_ci;
+        uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, &iface->cq[UCT_IB_DIR_TX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->cq[UCT_IB_DIR_TX]);
+        goto handle_cqe;
+    }
+
+    /*TODO: Check that there is no bulk_unzip during the out*/
     uct_ib_mlx5_update_db_cq_ci(&iface->cq[UCT_IB_DIR_TX]);
 
     return 1;

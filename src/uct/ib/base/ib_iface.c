@@ -216,6 +216,10 @@ ucs_config_field_t uct_ib_iface_config_table[] = {
    ucs_offsetof(uct_ib_iface_config_t, path_mtu),
                 UCS_CONFIG_TYPE_ENUM(uct_ib_mtu_values)},
 
+  {"BULK_UNZIP_LIMIT", "64",
+   "Limit which defines max zipped CQE block that may be handled during one poll.\n",
+   ucs_offsetof(uct_ib_iface_config_t, bulk_unzip_limit), UCS_CONFIG_TYPE_UINT},
+
   {NULL}
 };
 
@@ -1441,6 +1445,7 @@ UCS_CLASS_INIT_FUNC(uct_ib_iface_t, uct_iface_ops_t *tl_ops,
     /* initialize to invalid value */
     self->config.sl                 = UCT_IB_SL_NUM;
     self->config.hop_limit          = config->hop_limit;
+    self->config.bulk_unzip_limit   = config->bulk_unzip_limit;
     self->release_desc.cb           = uct_ib_iface_release_desc;
     self->config.enable_res_domain  = config->enable_res_domain;
     self->config.qp_type            = init_attr->qp_type;

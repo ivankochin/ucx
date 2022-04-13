@@ -85,13 +85,13 @@ uct_ib_mlx5_update_db_cq_ci(uct_ib_mlx5_cq_t *cq)
 
 
 static UCS_F_ALWAYS_INLINE int
-uct_ib_mlx5_check_and_init_zipped(uct_ib_mlx5_cq_t *cq, struct mlx5_cqe64 *cqe)
+uct_ib_mlx5_check_and_init_zipped(uct_ib_mlx5_cq_t *cq, struct mlx5_cqe64 *cqe, int bulk_unzip_limit)
 {
     if (cq->cq_unzip.current_idx > 0) {
         return 1;
     } else if ((cqe->op_own & UCT_IB_MLX5_CQE_FORMAT_MASK) == UCT_IB_MLX5_CQE_FORMAT_MASK) {
         /* First zipped CQE in the sequence */
-        uct_ib_mlx5_iface_cqe_unzip_init(cqe, cq);
+        uct_ib_mlx5_iface_cqe_unzip_init(cqe, cq, bulk_unzip_limit);
         return 1;
     }
     return 0;
@@ -600,7 +600,7 @@ static void UCS_F_ALWAYS_INLINE
 uct_ib_mlx5_update_cqe_zipping_stats(uct_ib_iface_t *iface,
                                      uct_ib_mlx5_cq_t *cq)
 {
-    if ((cq->cq_unzip.title.op_own >> 4) == MLX5_CQE_REQ) {
+    if ((cq->cq_unzip.title->op_own >> 4) == MLX5_CQE_REQ) {
         UCS_STATS_UPDATE_COUNTER(iface->stats,
                                  UCT_IB_IFACE_STAT_TX_COMPLETION_ZIPPED, 1);
     } else {
