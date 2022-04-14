@@ -1415,7 +1415,6 @@ uct_rc_mlx5_iface_common_poll_rx(uct_rc_mlx5_iface_common_t *iface,
     struct mlx5_cqe64 *cqe;
     unsigned byte_len;
     uint16_t max_batch;
-    unsigned count;
     void *rc_hdr;
     unsigned flags;
 #if IBV_HW_TM
@@ -1425,6 +1424,7 @@ uct_rc_mlx5_iface_common_poll_rx(uct_rc_mlx5_iface_common_t *iface,
     uct_rc_mlx5_ctx_priv_t *priv;
     uct_rc_mlx5_mp_context_t UCS_V_UNUSED *dummy_ctx;
 #endif
+    unsigned count = 0;
 
     ucs_assert((poll_flags & UCT_RC_MLX5_POLL_FLAG_LINKED_LIST) ||
                (uct_ib_mlx5_srq_get_wqe(&iface->rx.srq,
@@ -1438,7 +1438,6 @@ uct_rc_mlx5_iface_common_poll_rx(uct_rc_mlx5_iface_common_t *iface,
          *   lack of RX buffers.
          * Need to post new WQEs when some RX buffers are freed by the user.
          */
-        count = 0;
         goto out;
     }
 
