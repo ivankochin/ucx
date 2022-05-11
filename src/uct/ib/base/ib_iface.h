@@ -197,9 +197,6 @@ struct uct_ib_iface_config {
 
     /* Path MTU size */
     uct_ib_mtu_t            path_mtu;
-
-    /* Bulk unzip limit */
-    unsigned                bulk_unzip_limit;
 };
 
 
@@ -309,7 +306,6 @@ struct uct_ib_iface {
         uint8_t               qp_type;
         uint8_t               force_global_addr;
         enum ibv_mtu          path_mtu;
-        uint32_t               bulk_unzip_limit;
     } config;
 
     uct_ib_iface_ops_t        *ops;

@@ -1540,10 +1540,10 @@ handle_cqe:
 #endif
 
 try_get_next_cqe:
-    if (iface->cq[UCT_IB_DIR_RX].cq_unzip.bulk_unzip) {
+    if (iface->cq[UCT_IB_DIR_RX].current_idx) {
         iface->cq[UCT_IB_DIR_RX].cq_ci++;
         uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, &iface->cq[UCT_IB_DIR_RX]);
-        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->cq[UCT_IB_DIR_RX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip(&iface->cq[UCT_IB_DIR_RX]);
         goto handle_cqe;
     }
 

@@ -265,10 +265,10 @@ handle_cqe:
                                        iface->tx.dcis[dci_index].pool_index);
     uct_dc_mlx5_iface_check_tx(iface);
 
-    if (iface->super.cq[UCT_IB_DIR_TX].cq_unzip.bulk_unzip) {
+    if (iface->super.cq[UCT_IB_DIR_TX].current_idx) {
         iface->super.cq[UCT_IB_DIR_TX].cq_ci++;
         uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super.super, &iface->super.cq[UCT_IB_DIR_TX]);
-        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->super.cq[UCT_IB_DIR_TX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip(&iface->super.cq[UCT_IB_DIR_TX]);
         goto handle_cqe;
     }
 

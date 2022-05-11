@@ -76,18 +76,15 @@ uct_rc_mlx5_iface_check_rx_completion(uct_rc_mlx5_iface_common_t *iface,
     struct mlx5_err_cqe *ecqe = (void*)cqe;
     uct_ib_mlx5_srq_seg_t *seg;
     uint16_t wqe_ctr;
-    int bulk_unzip_limit = iface->super.super.config.bulk_unzip_limit;
 
     ucs_memory_cpu_load_fence();
 
-    if (uct_ib_mlx5_check_and_init_zipped(cq, cqe, bulk_unzip_limit)) {
+    if ((cqe->op_own & UCT_IB_MLX5_CQE_FORMAT_MASK) == UCT_IB_MLX5_CQE_FORMAT_MASK) {
+        /* First zipped CQE in the sequence */
+        uct_ib_mlx5_iface_cqe_unzip_init(cqe, cq);
         ++cq->cq_ci;
         uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, cq);
-        if (ucs_likely(cq->cq_unzip.bulk_unzip)) {
-            return uct_ib_mlx5_iface_cqe_unzip_bulk(cq);
-        } else {
-            return uct_ib_mlx5_iface_cqe_unzip(cq);
-        }
+        return uct_ib_mlx5_iface_cqe_unzip(cq);
     }
 
     if (((ecqe->op_own >> 4) == MLX5_CQE_RESP_ERR) &&
@@ -175,10 +172,10 @@ handle_cqe:
     uct_rc_iface_arbiter_dispatch(&iface->super);
 
     // POSSIBLE PERFORMANCE BOTTLENECK FOR OSU_BW EVEN WHEN CQE ZIPPING DISABLED (~5%)
-    if (iface->cq[UCT_IB_DIR_TX].cq_unzip.bulk_unzip) {
+    if (iface->cq[UCT_IB_DIR_TX].current_idx) {
         ++iface->cq[UCT_IB_DIR_TX].cq_ci;
         uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, &iface->cq[UCT_IB_DIR_TX]);
-        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->cq[UCT_IB_DIR_TX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip(&iface->cq[UCT_IB_DIR_TX]);
         goto handle_cqe;
     }
 

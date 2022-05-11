@@ -329,39 +329,27 @@ typedef struct {
 /**
  * This structure contains the data required for unzipping the CQEs
  */
-typedef struct {
-    /* CQE that contains the common information for all compression block */
-    struct mlx5_cqe64       title_copy;
-    /* Array of miniCQEs each of which contains unique CQE information */
-    uct_ib_mlx5_mini_cqe8_t mini_arr_copy[UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE];
-
-    struct mlx5_cqe64*       title;
-    uct_ib_mlx5_mini_cqe8_t* mini_arr;
-    /* Size of compression block */
-    uint32_t                block_size;
-    /* Number of unhandled CQE in compression block */
-    uint32_t                current_idx;
-    /* Title CQ index */
-    uint32_t                title_cq_idx;
-    /* Title wqe counter */
-    uint16_t                wqe_counter;
-    /* Unzipping seq left counter */
-    uint8_t                 bulk_unzip;
-} uct_ib_mlx5_cq_unzip_t;
+// typedef struct {
+//     /* Title CQ index */
+// } uct_ib_mlx5_cq_unzip_t;
 
 
 /* Completion queue */
 typedef struct uct_ib_mlx5_cq {
-    void                   *cq_buf;
-    unsigned               cq_ci;
-    unsigned               cq_sn;
-    unsigned               cq_length;
-    unsigned               cqe_size_log;
-    unsigned               cq_num;
-    void                   *uar;
-    volatile uint32_t      *dbrec;
-    uct_ib_mlx5_cq_unzip_t cq_unzip;
-} uct_ib_mlx5_cq_t;
+    void                   *cq_buf; // 8
+    void                   *uar; // 8
+    struct mlx5_cqe64*       title; // 8
+    uct_ib_mlx5_mini_cqe8_t* mini_arr; // 8
+    volatile uint32_t      *dbrec; // 8
+    unsigned               cq_ci; // 4
+    unsigned               cq_sn; // 4
+    unsigned               cq_length; // 4
+    unsigned               cqe_size_log; // 4
+    unsigned               cq_num; // 4
+    uint16_t               wqe_counter; // 2
+    uint8_t                block_size; // 1
+    uint8_t                current_idx; // 1
+} UCS_V_ALIGNED(UCS_SYS_CACHE_LINE_SIZE) uct_ib_mlx5_cq_t;
 
 
 /* Blue flame register */
@@ -596,8 +584,7 @@ ucs_status_t uct_ib_mlx5dv_arm_cq(uct_ib_mlx5_cq_t *cq, int solicited);
  * @param cq        CQ that contains the title.
  */
 void uct_ib_mlx5_iface_cqe_unzip_init(struct mlx5_cqe64 *title_cqe,
-                                      uct_ib_mlx5_cq_t *cq,
-                                      int bulk_unzip_limit);
+                                      uct_ib_mlx5_cq_t *cq);
 
 /**
  * Unzip the next CQE. Should be used only when cq_unzip->current_idx > 0.
@@ -608,7 +595,6 @@ void uct_ib_mlx5_iface_cqe_unzip_init(struct mlx5_cqe64 *title_cqe,
  * @return Next unzipped CQE.
  */
 struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip(uct_ib_mlx5_cq_t *cq);
-struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip_bulk(uct_ib_mlx5_cq_t *cq);
 
 /**
  * Check for completion.

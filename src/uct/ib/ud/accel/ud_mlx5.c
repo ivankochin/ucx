@@ -515,10 +515,10 @@ handle_cqe:
             (uct_ud_recv_skb_t*)ucs_unaligned_ptr(desc), is_async);
 
 try_get_next_cqe:
-    if (iface->cq[UCT_IB_DIR_RX].cq_unzip.bulk_unzip) {
+    if (iface->cq[UCT_IB_DIR_RX].current_idx) {
         iface->cq[UCT_IB_DIR_RX].cq_ci++;
         uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, &iface->cq[UCT_IB_DIR_RX]);
-        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->cq[UCT_IB_DIR_RX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip(&iface->cq[UCT_IB_DIR_RX]);
         goto handle_cqe;
     }
 
@@ -556,10 +556,10 @@ handle_cqe:
     hw_ci                     = ntohs(cqe->wqe_counter);
     iface->super.tx.available = uct_ib_mlx5_txwq_update_bb(&iface->tx.wq, hw_ci);
 
-    if (iface->cq[UCT_IB_DIR_TX].cq_unzip.bulk_unzip) {
+    if (iface->cq[UCT_IB_DIR_TX].current_idx) {
         iface->cq[UCT_IB_DIR_TX].cq_ci++;
         uct_ib_mlx5_update_cqe_zipping_stats(&iface->super.super, &iface->cq[UCT_IB_DIR_TX]);
-        cqe = uct_ib_mlx5_iface_cqe_unzip_bulk(&iface->cq[UCT_IB_DIR_TX]);
+        cqe = uct_ib_mlx5_iface_cqe_unzip(&iface->cq[UCT_IB_DIR_TX]);
         goto handle_cqe;
     }
 
