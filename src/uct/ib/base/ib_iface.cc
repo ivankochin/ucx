@@ -226,7 +226,7 @@ int uct_ib_iface_is_ib(uct_ib_iface_t *iface)
 static void
 uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj, uct_mem_h memh)
 {
-    uct_ib_iface_recv_desc_t *desc = obj;
+    uct_ib_iface_recv_desc_t *desc = (uct_ib_iface_recv_desc_t *)obj;
 
     desc->lkey = uct_ib_memh_get_lkey(memh);
 }
@@ -572,7 +572,7 @@ ucs_status_t uct_ib_iface_get_device_address(uct_iface_h tl_iface,
 {
     uct_ib_iface_t *iface = ucs_derived_of(tl_iface, uct_ib_iface_t);
 
-    uct_ib_iface_address_pack(iface, (void*)dev_addr);
+    uct_ib_iface_address_pack(iface, (uct_ib_address_t*)dev_addr);
 
     return UCS_OK;
 }
@@ -644,8 +644,8 @@ uct_ib_iface_roce_is_reachable(const uct_ib_device_gid_info_t *local_gid_info,
     }
 
     addr_offset = sizeof(union ibv_gid) - addr_size;
-    local_addr  = UCS_PTR_BYTE_OFFSET(&local_gid_info->gid, addr_offset);
-    remote_addr = UCS_PTR_BYTE_OFFSET(&remote_ib_addr->flags + 1, addr_offset);
+    local_addr  = (uint8_t*)UCS_PTR_BYTE_OFFSET(&local_gid_info->gid, addr_offset);
+    remote_addr = (uint8_t*)UCS_PTR_BYTE_OFFSET(&remote_ib_addr->flags + 1, addr_offset);
 
     /* sanity check on the subnet mask size (bits belonging to the prefix) */
     ucs_assert((prefix_bits / 8) <= addr_size);
@@ -670,7 +670,7 @@ int uct_ib_iface_is_reachable(const uct_iface_h tl_iface,
 {
     uct_ib_iface_t *iface           = ucs_derived_of(tl_iface, uct_ib_iface_t);
     int is_local_eth                = uct_ib_iface_is_roce(iface);
-    const uct_ib_address_t *ib_addr = (const void*)dev_addr;
+    const uct_ib_address_t *ib_addr = (const uct_ib_address_t *)dev_addr;
     uct_ib_address_pack_params_t params;
 
     uct_ib_address_unpack(ib_addr, &params);
@@ -887,7 +887,7 @@ static ucs_status_t uct_ib_iface_init_lmc(uct_ib_iface_t *iface,
                                        config->lid_path_bits.ranges[i].last));
     }
 
-    iface->path_bits = ucs_calloc(1, num_path_bits * sizeof(*iface->path_bits),
+    iface->path_bits = (uint8_t*)ucs_calloc(1, num_path_bits * sizeof(*iface->path_bits),
                                   "ib_path_bits");
     if (iface->path_bits == NULL) {
         return UCS_ERR_NO_MEMORY;
@@ -1518,7 +1518,7 @@ int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
 
     count = 0;
     while (count < n) {
-        UCT_TL_IFACE_GET_RX_DESC(&iface->super, mp, desc, break);
+        UCT_TL_IFACE_GET_RX_DESC(&iface->super, mp, desc, uct_ib_iface_recv_desc_t*, break);
         wrs[count].sg.addr   = (uintptr_t)uct_ib_iface_recv_desc_hdr(iface, desc);
         wrs[count].sg.length = iface->config.rx_payload_offset + iface->config.seg_size;
         wrs[count].sg.lkey   = desc->lkey;
@@ -1592,11 +1592,22 @@ static ucs_status_t uct_ib_iface_get_numa_latency(uct_ib_iface_t *iface,
     return UCS_OK;
 }
 
+static uint8_t* ib_port_widths_init() {
+    static uint8_t ib_port_widths[17];
+    ib_port_widths[1]  = 1;
+    ib_port_widths[2]  = 4;
+    ib_port_widths[4]  = 8;
+    ib_port_widths[8]  = 12;
+    ib_port_widths[16] = 2;
+
+    return ib_port_widths;
+}
+
 ucs_status_t uct_ib_iface_query(uct_ib_iface_t *iface, size_t xport_hdr_len,
                                 uct_iface_attr_t *iface_attr)
 {
-    static const uint8_t ib_port_widths[] =
-            {[1] = 1, [2] = 4, [4] = 8, [8] = 12, [16] = 2};
+    static uint8_t *ib_port_widths = ib_port_widths_init();
+
     uct_ib_device_t *dev                 = uct_ib_iface_device(iface);
     uct_ib_md_t *md                      = uct_ib_iface_md(iface);
     uint8_t active_width, active_speed, active_mtu, width;

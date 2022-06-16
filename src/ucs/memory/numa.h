@@ -13,6 +13,8 @@
 
 #include <ucs/debug/memtrack_int.h>
 
+BEGIN_C_DECLS
+
 #if HAVE_NUMA
 #include <numaif.h>
 #include <numa.h>
@@ -61,5 +63,6 @@ extern const char *ucs_numa_policy_names[];
 
 int ucs_numa_node_of_cpu(int cpu);
 
+END_C_DECLS
 
 #endif

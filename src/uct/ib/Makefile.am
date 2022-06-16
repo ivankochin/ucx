@@ -23,8 +23,8 @@ noinst_HEADERS = \
 	base/ib_verbs.h
 
 libuct_ib_la_SOURCES = \
-	base/ib_device.c \
-	base/ib_iface.c \
+	base/ib_device.cc \
+	base/ib_iface.cc \
 	base/ib_log.cc \
 	base/ib_md.cc
 
