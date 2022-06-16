@@ -9,6 +9,10 @@
 #ifndef UCT_IB_MD_H_
 #define UCT_IB_MD_H_
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include "ib_device.h"
 
 #include <uct/base/uct_md.h>
@@ -29,6 +33,7 @@
 #define UCT_IB_MEM_DEREG          0
 #define UCT_IB_CONFIG_PREFIX      "IB_"
 
+BEGIN_C_DECLS
 
 /**
  * IB MD statistics counters
@@ -61,7 +66,8 @@ enum {
     UCT_IB_DEVX_OBJ_RCSRQ,
     UCT_IB_DEVX_OBJ_DCT,
     UCT_IB_DEVX_OBJ_DCSRQ,
-    UCT_IB_DEVX_OBJ_DCI
+    UCT_IB_DEVX_OBJ_DCI,
+    UCT_IB_DEVX_OBJ_LAST
 };
 
 typedef struct uct_ib_md_ext_config {
@@ -360,11 +366,13 @@ typedef struct uct_ib_md_ops_entry {
 #define UCT_IB_MD_OPS(_md_ops, _priority) \
     extern ucs_list_link_t uct_ib_md_ops_list; \
     UCS_STATIC_INIT { \
-        static uct_ib_md_ops_entry_t *p, entry = { \
-            .name     = UCS_PP_MAKE_STRING(_md_ops), \
-            .ops      = &_md_ops, \
-            .priority = _priority, \
-        }; \
+        static uct_ib_md_ops_entry_t *p; \
+        static uct_ib_md_ops_entry_t entry; \
+        entry.list.prev = NULL; \
+        entry.list.next = NULL; \
+        entry.name      = UCS_PP_MAKE_STRING(_md_ops); \
+        entry.ops       = &_md_ops; \
+        entry.priority  = _priority; \
         ucs_list_for_each(p, &uct_ib_md_ops_list, list) { \
             if (p->priority < _priority) { \
                 ucs_list_insert_before(&p->list, &entry.list); \
@@ -474,4 +482,7 @@ ucs_status_t uct_ib_reg_key_impl(uct_ib_md_t *md, void *address,
                                  size_t length, uint64_t access_flags,
                                  uct_ib_mem_t *memh, uct_ib_mr_t *mrs,
                                  uct_ib_mr_type_t mr_type, int silent);
+
+END_C_DECLS
+
 #endif

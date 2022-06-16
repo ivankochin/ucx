@@ -25,8 +25,8 @@ noinst_HEADERS = \
 libuct_ib_la_SOURCES = \
 	base/ib_device.c \
 	base/ib_iface.c \
-	base/ib_log.c \
-	base/ib_md.c
+	base/ib_log.cc \
+	base/ib_md.cc
 
 # TODO separate module for mlx5
 if HAVE_MLX5_HW

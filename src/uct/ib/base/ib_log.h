@@ -7,6 +7,10 @@
 #ifndef UCT_IB_LOG_H
 #define UCT_IB_LOG_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include "ib_verbs.h"
 #include "ib_iface.h"
 
@@ -14,6 +18,7 @@
 #include <ucs/debug/log.h>
 #include <ucs/sys/math.h>
 
+BEGIN_C_DECLS
 
 enum {
     UCT_IB_OPCODE_FLAG_HAS_RADDR       = UCS_BIT(0),
@@ -101,5 +106,7 @@ void __uct_ib_log_exp_post_send(const char *file, int line, const char *function
         __uct_ib_log_exp_post_send(__FILE__, __LINE__, __FUNCTION__, \
                                    _iface, _qp, _wr, _max_sge, _dump_cb); \
     }
+
+END_C_DECLS
 
 #endif

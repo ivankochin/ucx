@@ -4,10 +4,6 @@
 * See file LICENSE for terms.
 */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "ib_log.h"
 
 #include <ucs/sys/sys.h>
@@ -209,23 +205,43 @@ static void uct_ib_dump_send_wr(uct_ib_iface_t *iface, struct ibv_qp *qp,
                                 uct_log_data_dump_func_t data_dump,
                                 char *buf, size_t max)
 {
-    static uct_ib_opcode_t opcodes[] = {
-        [IBV_WR_RDMA_WRITE]           = { "RDMA_WRITE", UCT_IB_OPCODE_FLAG_HAS_RADDR },
-        [IBV_WR_RDMA_READ]            = { "RDMA_READ",  UCT_IB_OPCODE_FLAG_HAS_RADDR },
-        [IBV_WR_SEND]                 = { "SEND",       0 },
-        [IBV_WR_SEND_WITH_IMM]        = { "SEND_IMM",   0 },
-        [IBV_WR_ATOMIC_CMP_AND_SWP]   = { "CSWAP",      UCT_IB_OPCODE_FLAG_HAS_ATOMIC },
-        [IBV_WR_ATOMIC_FETCH_AND_ADD] = { "FETCH_ADD",  UCT_IB_OPCODE_FLAG_HAS_ATOMIC },
-    };
-
+    uct_ib_opcode_t op;
     char *s             = buf;
     char *ends          = buf + max;
-    uct_ib_opcode_t *op = &opcodes[wr->opcode];
 
-    uct_ib_dump_wr_opcode(qp, wr->wr_id, op, wr->send_flags, s, ends - s);
+    switch (wr->opcode) {
+    case IBV_WR_RDMA_WRITE:
+        op.name = "RDMA_WRITE";
+        op.flags = UCT_IB_OPCODE_FLAG_HAS_RADDR;
+        break;
+    case IBV_WR_RDMA_READ:
+        op.name = "RDMA_READ";
+        op.flags = UCT_IB_OPCODE_FLAG_HAS_RADDR;
+        break;
+    case IBV_WR_SEND:
+        op.name = "SEND";
+        op.flags = 0;
+        break;
+    case IBV_WR_SEND_WITH_IMM:
+        op.name = "SEND_IMM";
+        op.flags = 0;
+        break;
+    case IBV_WR_ATOMIC_CMP_AND_SWP:
+        op.name = "CSWAP";
+        op.flags = UCT_IB_OPCODE_FLAG_HAS_ATOMIC;
+        break;
+    case IBV_WR_ATOMIC_FETCH_AND_ADD:
+        op.name = "FETCH_ADD";
+        op.flags = UCT_IB_OPCODE_FLAG_HAS_ATOMIC;
+        break;
+    default:
+        ucs_fatal("Unknown IBV opcode %d", wr->opcode);
+    }
+
+    uct_ib_dump_wr_opcode(qp, wr->wr_id, &op, wr->send_flags, s, ends - s);
     s += strlen(s);
 
-    uct_ib_dump_wr(qp, op, wr, s, ends - s);
+    uct_ib_dump_wr(qp, &op, wr, s, ends - s);
     s += strlen(s);
 
     uct_ib_log_dump_sg_list(iface, UCT_AM_TRACE_TYPE_SEND, wr->sg_list,

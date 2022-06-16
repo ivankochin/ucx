@@ -7,12 +7,17 @@
 #ifndef UCS_DEBUG_INT_H_
 #define UCS_DEBUG_INT_H_
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <ucs/datastruct/list.h>
 #include <ucs/type/status.h>
 #include <ucs/config/types.h>
 #include <ucs/debug/debug.h>
 #include <stdio.h>
 
+BEGIN_C_DECLS
 
 /**
  * Information about an address in the code.
@@ -126,5 +131,6 @@ void ucs_handle_error(const char *message);
  */
 const char *ucs_debug_get_symbol_name(void *address);
 
+END_C_DECLS
 
 #endif

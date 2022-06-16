@@ -8,6 +8,10 @@
 #ifndef UCT_IB_IFACE_H
 #define UCT_IB_IFACE_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include "ib_md.h"
 
 #include <uct/api/uct.h>

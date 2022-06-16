@@ -20,6 +20,7 @@
 #include <ucs/type/param.h>
 #include <string.h>
 
+BEGIN_C_DECLS
 
 #define uct_md_log_mem_reg_error(_flags, _fmt, ...) \
     ucs_log(uct_md_reg_log_lvl(_flags), _fmt, ## __VA_ARGS__)
@@ -235,5 +236,7 @@ static inline ucs_log_level_t uct_md_reg_log_lvl(unsigned flags)
 
 void uct_md_vfs_init(uct_component_h component, uct_md_h md,
                      const char *md_name);
+
+END_C_DECLS
 
 #endif
