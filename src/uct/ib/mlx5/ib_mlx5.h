@@ -16,6 +16,8 @@
 #include <ucs/debug/log.h>
 #include <ucs/type/status.h>
 
+BEGIN_C_DECLS
+
 /**
  * When using a clang version that is higher than 3.0, the GNUC_MINOR is set
  * to 2, which affects the offset of several fields that are used by UCX from
@@ -787,5 +789,7 @@ static inline void uct_ib_mlx5_put_dbrec(uct_ib_mlx5_dbrec_t *dbrec)
     ucs_mpool_put_inline(dbrec);
     ucs_recursive_spin_unlock(&md->dbrec_lock);
 }
+
+END_C_DECLS
 
 #endif

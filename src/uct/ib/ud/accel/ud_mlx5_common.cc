@@ -74,4 +74,3 @@ uct_ud_mlx5_iface_get_av(uct_ib_iface_t *iface,
     }
     return UCS_OK;
 }
-
