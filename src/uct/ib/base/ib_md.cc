@@ -279,7 +279,8 @@ static const uct_ib_md_pci_info_t uct_ib_md_pci_info[] = {
 };
 }
 
-UCS_LIST_HEAD(uct_ib_md_ops_list);
+// UCS_LIST_HEAD(uct_ib_md_ops_list);
+ucs_list_link_t uct_ib_md_ops_list(&uct_ib_md_ops_list, &uct_ib_md_ops_list);
 
 typedef struct uct_ib_verbs_mem {
     uct_ib_mem_t        super;

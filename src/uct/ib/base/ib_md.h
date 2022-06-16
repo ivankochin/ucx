@@ -368,11 +368,11 @@ typedef struct uct_ib_md_ops_entry {
     UCS_STATIC_INIT { \
         static uct_ib_md_ops_entry_t *p; \
         static uct_ib_md_ops_entry_t entry; \
-        entry.list.prev = NULL; \
-        entry.list.next = NULL; \
         entry.name      = UCS_PP_MAKE_STRING(_md_ops); \
         entry.ops       = &_md_ops; \
         entry.priority  = _priority; \
+        uct_ib_md_ops_list.prev = &uct_ib_md_ops_list; \
+        uct_ib_md_ops_list.next = &uct_ib_md_ops_list; \
         ucs_list_for_each(p, &uct_ib_md_ops_list, list) { \
             if (p->priority < _priority) { \
                 ucs_list_insert_before(&p->list, &entry.list); \
