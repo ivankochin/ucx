@@ -7,10 +7,15 @@
 #ifndef UCS_WHEEL_H
 #define UCS_WHEEL_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <ucs/datastruct/list.h>
 #include <ucs/time/time.h>
 #include <ucs/debug/log.h>
 
+BEGIN_C_DECLS
 
 /* Forward declarations */
 typedef struct ucs_wtimer       ucs_wtimer_t;
@@ -140,5 +145,7 @@ static inline void ucs_wtimer_remove(ucs_twheel_t *t, ucs_wtimer_t *timer)
         t->count--;
     }
 }
+
+END_C_DECLS
 
 #endif

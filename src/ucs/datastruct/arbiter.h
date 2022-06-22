@@ -7,11 +7,17 @@
 #ifndef UCS_ARBITER_H_
 #define UCS_ARBITER_H_
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <ucs/sys/compiler_def.h>
 #include <ucs/datastruct/list.h>
 #include <ucs/type/status.h>
 #include <stdio.h>
 #include <ucs/debug/assert.h>
+
+BEGIN_C_DECLS
 
 /*
  *  A mechanism to arbitrate among groups of queued work elements, which attempts
@@ -396,5 +402,7 @@ ucs_arbiter_elem_is_only(ucs_arbiter_elem_t *elem)
 {
     return elem->next == elem;
 }
+
+END_C_DECLS
 
 #endif

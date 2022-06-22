@@ -372,6 +372,18 @@ typedef struct uct_iface_local_addr_ns {
  * @param _cfg_table      Transport configuration table
  * @param _cfg_struct     Struct type defining transport configuration
  */
+#if __cplusplus
+#define UCT_TL_DEFINE(_component, _name, _query_devices, _iface_class, \
+                      _cfg_prefix, _cfg_table, _cfg_struct) \
+    \
+    uct_tl_t uct_##_name##_tl{#_name, _query_devices, \
+                              UCS_CLASS_NEW_FUNC_NAME(_iface_class), \
+                              {#_name" transport", _cfg_prefix, (ucs_config_field_t *)_cfg_table, sizeof(_cfg_struct)}}; \
+    UCS_CONFIG_REGISTER_TABLE_ENTRY(&(uct_##_name##_tl).config, &ucs_config_global_list); \
+    UCS_STATIC_INIT { \
+        ucs_list_add_tail(&(_component)->tl_list, &(uct_##_name##_tl).list); \
+    }
+#else
 #define UCT_TL_DEFINE(_component, _name, _query_devices, _iface_class, \
                       _cfg_prefix, _cfg_table, _cfg_struct) \
     \
@@ -390,6 +402,7 @@ typedef struct uct_iface_local_addr_ns {
     UCS_STATIC_INIT { \
         ucs_list_add_tail(&(_component)->tl_list, &(uct_##_name##_tl).list); \
     }
+#endif
 
 
 /**

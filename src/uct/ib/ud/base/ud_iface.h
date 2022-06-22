@@ -8,6 +8,10 @@
 #ifndef UCT_UD_IFACE_H
 #define UCT_UD_IFACE_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <uct/base/uct_worker.h>
 #include <uct/ib/base/ib_device.h>
 #include <uct/ib/base/ib_iface.h>

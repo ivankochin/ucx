@@ -91,9 +91,6 @@ typedef struct ucs_config_global_list_entry {
     ucs_config_field_t       *table;   /* array of configuration fields */
     size_t                   size;     /* size of config structure */
     ucs_list_link_t          list;     /* entry in global list */
-#if __cplusplus
-    ucs_config_global_list_entry() : name(""), prefix(""), table(NULL), size(0), list() {}
-#endif
 } ucs_config_global_list_entry_t;
 
 

@@ -1931,7 +1931,7 @@ static uct_component_t uct_ib_init_component() {
     component.rkey_ptr           = (uct_component_rkey_ptr_func_t)ucs_empty_function_return_unsupported;
     component.rkey_release       = (uct_component_rkey_release_func_t)ucs_empty_function_return_success;
 
-    ucs_config_global_list_entry_t md_config;
+    ucs_config_global_list_entry_t md_config{};
     md_config.name               = "IB memory domain";
     md_config.prefix             = UCT_IB_CONFIG_PREFIX;
     md_config.table              = uct_ib_md_config_table;

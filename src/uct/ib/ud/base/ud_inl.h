@@ -4,6 +4,13 @@
  * See file LICENSE for terms.
  */
 
+
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
+BEGIN_C_DECLS
+
 static UCS_F_ALWAYS_INLINE void
 uct_ud_ep_ctl_op_schedule(uct_ud_iface_t *iface, uct_ud_ep_t *ep)
 {
@@ -53,7 +60,7 @@ uct_ud_send_skb_t *uct_ud_iface_get_tx_skb(uct_ud_iface_t *iface,
 
     skb = iface->tx.skb;
     if (ucs_unlikely(skb == NULL)) {
-        skb = ucs_mpool_get(&iface->tx.mp);
+        skb = (uct_ud_send_skb_t *)ucs_mpool_get(&iface->tx.mp);
         if (skb == NULL) {
             ucs_trace_data("iface=%p out of tx skbs", iface);
             UCT_TL_IFACE_STAT_TX_NO_DESC(&iface->super.super);
@@ -159,7 +166,7 @@ uct_ud_iface_complete_tx_skb(uct_ud_iface_t *iface, uct_ud_ep_t *ep,
                              uct_ud_send_skb_t *skb)
 {
     ucs_time_t now = uct_ud_iface_get_time(iface);
-    iface->tx.skb  = ucs_mpool_get(&iface->tx.mp);
+    iface->tx.skb  = (uct_ud_send_skb_t *)ucs_mpool_get(&iface->tx.mp);
     ep->tx.psn++;
 
     ucs_queue_push(&ep->tx.window, &skb->queue);
@@ -256,3 +263,5 @@ uct_ud_iov_to_skb(uct_ud_send_skb_t *skb, const uct_iov_t *iov, size_t iovcnt)
     skb->len += uct_iov_to_buffer(iov, iovcnt, &iov_iter, skb->neth + 1,
                                   SIZE_MAX);
 }
+
+END_C_DECLS
