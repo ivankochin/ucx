@@ -8,6 +8,10 @@
 #ifndef UCT_IB_DEVICE_H
 #define UCT_IB_DEVICE_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include "ib_verbs.h"
 
 #include <uct/api/uct.h>
@@ -22,6 +26,7 @@
 #include <endian.h>
 #include <linux/ip.h>
 
+BEGIN_C_DECLS
 
 #define UCT_IB_QPN_ORDER                  24  /* How many bits can be an IB QP number */
 #define UCT_IB_UIDX_SHIFT                 8   /* BE uidx shift */
@@ -454,5 +459,7 @@ static inline ucs_status_t uct_ib_poll_cq(struct ibv_cq *cq, unsigned *count, st
 }
 
 void uct_ib_handle_async_event(uct_ib_device_t *dev, uct_ib_async_event_t *event);
+
+END_C_DECLS
 
 #endif

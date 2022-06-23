@@ -25,6 +25,8 @@
 #include <ucs/type/status.h>
 #include <ucs/debug/log.h>
 
+BEGIN_C_DECLS
+
 #ifndef HAVE_VERBS_EXP_H
 #  define IBV_EXP_SEND_INLINE              IBV_SEND_INLINE
 #  define IBV_EXP_SEND_SIGNALED            IBV_SEND_SIGNALED
@@ -348,5 +350,7 @@ uct_ib_query_qp_peer_info(struct ibv_qp *qp, struct ibv_ah_attr *ah_attr,
 
     return UCS_OK;
 }
+
+END_C_DECLS
 
 #endif /* UCT_IB_VERBS_H */

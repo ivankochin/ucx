@@ -7,6 +7,10 @@
 #ifndef UCS_REG_CACHE_H_
 #define UCS_REG_CACHE_H_
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 /*
  * Memory registration cache - holds registered memory regions, takes care of
  * memory invalidation (if it's unmapped), merging of regions, protection flags.
@@ -19,6 +23,7 @@
 #include <ucs/stats/stats_fwd.h>
 #include <sys/mman.h>
 
+BEGIN_C_DECLS
 
 #define UCS_RCACHE_PROT_FMT "%c%c"
 #define UCS_RCACHE_PROT_ARG(_prot) \
@@ -236,5 +241,6 @@ void ucs_rcache_region_invalidate(ucs_rcache_t *rcache,
                                   ucs_rcache_invalidate_comp_func_t cb,
                                   void *arg);
 
+END_C_DECLS
 
 #endif

@@ -555,6 +555,7 @@ static void uct_ud_verbs_iface_destroy_qp(uct_ud_iface_t *ud_iface)
 
 static void UCS_CLASS_DELETE_FUNC_NAME(uct_ud_verbs_iface_t)(uct_iface_t*);
 
+// TODO: Understand why does it compiles successfully???
 static uct_ud_iface_ops_t uct_ud_verbs_iface_ops = {
     .super = {
         .super = {
@@ -578,35 +579,39 @@ static uct_ud_iface_ops_t uct_ud_verbs_iface_ops = {
     .peer_address_str        = uct_ud_verbs_iface_peer_address_str,
 };
 
-static uct_iface_ops_t uct_ud_verbs_iface_tl_ops = {
-    .ep_put_short             = uct_ud_verbs_ep_put_short,
-    .ep_am_short              = uct_ud_verbs_ep_am_short,
-    .ep_am_short_iov          = uct_ud_verbs_ep_am_short_iov,
-    .ep_am_bcopy              = uct_ud_verbs_ep_am_bcopy,
-    .ep_am_zcopy              = uct_ud_verbs_ep_am_zcopy,
-    .ep_pending_add           = uct_ud_ep_pending_add,
-    .ep_pending_purge         = uct_ud_ep_pending_purge,
-    .ep_flush                 = uct_ud_ep_flush,
-    .ep_fence                 = uct_base_ep_fence,
-    .ep_check                 = uct_ud_ep_check,
-    .ep_create                = uct_ud_verbs_ep_create,
-    .ep_destroy               = uct_ud_ep_disconnect,
-    .ep_get_address           = uct_ud_ep_get_address,
-    .ep_connect_to_ep         = uct_ud_ep_connect_to_ep,
-    .iface_flush              = uct_ud_iface_flush,
-    .iface_fence              = uct_base_iface_fence,
-    .iface_progress_enable    = uct_ud_iface_progress_enable,
-    .iface_progress_disable   = uct_ud_iface_progress_disable,
-    .iface_progress           = uct_ud_verbs_iface_progress,
-    .iface_event_fd_get       = (uct_iface_event_fd_get_func_t)
-                                ucs_empty_function_return_unsupported,
-    .iface_event_arm          = uct_ud_iface_event_arm,
-    .iface_close              = UCS_CLASS_DELETE_FUNC_NAME(uct_ud_verbs_iface_t),
-    .iface_query              = uct_ud_verbs_iface_query,
-    .iface_get_device_address = uct_ib_iface_get_device_address,
-    .iface_get_address        = uct_ud_iface_get_address,
-    .iface_is_reachable       = uct_ib_iface_is_reachable
-};
+static uct_iface_ops_t uct_ud_verbs_iface_init_tl_ops() {
+    uct_iface_ops_t result;
+    result.ep_put_short             = uct_ud_verbs_ep_put_short;
+    result.ep_am_short              = uct_ud_verbs_ep_am_short;
+    result.ep_am_short_iov          = uct_ud_verbs_ep_am_short_iov;
+    result.ep_am_bcopy              = uct_ud_verbs_ep_am_bcopy;
+    result.ep_am_zcopy              = uct_ud_verbs_ep_am_zcopy;
+    result.ep_pending_add           = uct_ud_ep_pending_add;
+    result.ep_pending_purge         = uct_ud_ep_pending_purge;
+    result.ep_flush                 = uct_ud_ep_flush;
+    result.ep_fence                 = uct_base_ep_fence;
+    result.ep_check                 = uct_ud_ep_check;
+    result.ep_create                = uct_ud_verbs_ep_create;
+    result.ep_destroy               = uct_ud_ep_disconnect;
+    result.ep_get_address           = uct_ud_ep_get_address;
+    result.ep_connect_to_ep         = uct_ud_ep_connect_to_ep;
+    result.iface_flush              = uct_ud_iface_flush;
+    result.iface_fence              = uct_base_iface_fence;
+    result.iface_progress_enable    = uct_ud_iface_progress_enable;
+    result.iface_progress_disable   = uct_ud_iface_progress_disable;
+    result.iface_progress           = uct_ud_verbs_iface_progress;
+    result.iface_event_fd_get       = (uct_iface_event_fd_get_func_t)
+                                      ucs_empty_function_return_unsupported;
+    result.iface_event_arm          = uct_ud_iface_event_arm;
+    result.iface_close              = UCS_CLASS_DELETE_FUNC_NAME(uct_ud_verbs_iface_t);
+    result.iface_query              = uct_ud_verbs_iface_query;
+    result.iface_get_device_address = uct_ib_iface_get_device_address;
+    result.iface_get_address        = uct_ud_iface_get_address;
+    result.iface_is_reachable       = uct_ib_iface_is_reachable;
+    return result;
+}
+
+static uct_iface_ops_t uct_ud_verbs_iface_tl_ops = uct_ud_verbs_iface_init_tl_ops();
 
 static UCS_F_NOINLINE void
 uct_ud_verbs_iface_post_recv_always(uct_ud_verbs_iface_t *iface, int max)
@@ -616,7 +621,7 @@ uct_ud_verbs_iface_post_recv_always(uct_ud_verbs_iface_t *iface, int max)
     unsigned count;
     int ret;
 
-    wrs  = ucs_alloca(sizeof *wrs  * max);
+    wrs  = (uct_ib_recv_wr_t *)ucs_alloca(sizeof *wrs  * max);
 
     count = uct_ib_iface_prepare_rx_wrs(&iface->super.super, &iface->super.rx.mp,
                                         wrs, max);

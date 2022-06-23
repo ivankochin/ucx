@@ -26,6 +26,7 @@
 
 #include <ucs/datastruct/mpool.inl>
 
+BEGIN_C_DECLS
 
 /* UCT IFACE local address flag which packed to ID and indicates if an address
  * is extended by a system namespace information */
@@ -371,6 +372,18 @@ typedef struct uct_iface_local_addr_ns {
  * @param _cfg_table      Transport configuration table
  * @param _cfg_struct     Struct type defining transport configuration
  */
+#if __cplusplus
+#define UCT_TL_DEFINE(_component, _name, _query_devices, _iface_class, \
+                      _cfg_prefix, _cfg_table, _cfg_struct) \
+    \
+    uct_tl_t uct_##_name##_tl{#_name, _query_devices, \
+                              UCS_CLASS_NEW_FUNC_NAME(_iface_class), \
+                              {#_name" transport", _cfg_prefix, (ucs_config_field_t *)_cfg_table, sizeof(_cfg_struct)}}; \
+    UCS_CONFIG_REGISTER_TABLE_ENTRY(&(uct_##_name##_tl).config, &ucs_config_global_list); \
+    UCS_STATIC_INIT { \
+        ucs_list_add_tail(&(_component)->tl_list, &(uct_##_name##_tl).list); \
+    }
+#else
 #define UCT_TL_DEFINE(_component, _name, _query_devices, _iface_class, \
                       _cfg_prefix, _cfg_table, _cfg_struct) \
     \
@@ -389,6 +402,7 @@ typedef struct uct_iface_local_addr_ns {
     UCS_STATIC_INIT { \
         ucs_list_add_tail(&(_component)->tl_list, &(uct_##_name##_tl).list); \
     }
+#endif
 
 
 /**
@@ -451,7 +465,18 @@ typedef struct uct_iface_mpool_config {
         VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
     }
 
-
+#if __cplusplus
+#define UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _desc_type, _failure) \
+    { \
+        _desc = (_desc_type)ucs_mpool_get_inline(_mp); \
+        if (ucs_unlikely((_desc) == NULL)) { \
+            uct_iface_mpool_empty_warn(_iface, _mp); \
+            _failure; \
+        } \
+        \
+        VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
+    }
+#else
 #define UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure) \
     { \
         _desc = ucs_mpool_get_inline(_mp); \
@@ -462,6 +487,7 @@ typedef struct uct_iface_mpool_config {
         \
         VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
     }
+#endif
 
 
 #define UCT_TL_IFACE_PUT_DESC(_desc) \
@@ -868,5 +894,7 @@ static UCS_F_ALWAYS_INLINE int uct_ep_op_is_zcopy(uct_ep_operation_t op)
                           UCS_BIT(UCT_EP_OP_GET_ZCOPY) |
                           UCS_BIT(UCT_EP_OP_EAGER_ZCOPY));
 }
+
+END_C_DECLS
 
 #endif

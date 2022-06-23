@@ -7,8 +7,13 @@
 #ifndef UD_IFACE_COMMON_H
 #define UD_IFACE_COMMON_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <ucs/config/parser.h>
 
+BEGIN_C_DECLS
 
 /**
  * Common configuration for IB non peer-to-peer transports (UD and DC).
@@ -20,5 +25,6 @@ typedef struct uct_ud_iface_common_config {
 
 extern ucs_config_field_t uct_ud_iface_common_config_table[];
 
+END_C_DECLS
 
 #endif

@@ -7,12 +7,17 @@
 #ifndef UD_DEF_H_
 #define UD_DEF_H_
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <uct/ib/base/ib_iface.h>
 #include <ucs/arch/cpu.h>
 #include <ucs/datastruct/queue.h>
 #include <ucs/datastruct/frag_list.h>
 #include <ucs/sys/math.h>
 
+BEGIN_C_DECLS
 
 #define UCT_UD_QP_HASH_SIZE     256
 #define UCT_UD_TX_MODERATION    64
@@ -272,5 +277,6 @@ static inline uct_ud_zcopy_desc_t *uct_ud_zcopy_desc(uct_ud_send_skb_t *skb)
     return (uct_ud_zcopy_desc_t*)((char*)skb->neth + skb->len);
 }
 
+END_C_DECLS
 
 #endif

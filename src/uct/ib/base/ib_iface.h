@@ -8,6 +8,10 @@
 #ifndef UCT_IB_IFACE_H
 #define UCT_IB_IFACE_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include "ib_md.h"
 
 #include <uct/api/uct.h>
@@ -19,6 +23,7 @@
 #include <ucs/datastruct/mpool.inl>
 #include <ucs/datastruct/string_buffer.h>
 
+BEGIN_C_DECLS
 
 #define UCT_IB_MAX_IOV                     8UL
 #define UCT_IB_IFACE_NULL_RES_DOMAIN_KEY   0u
@@ -662,5 +667,7 @@ uct_ib_fill_cq_attr(struct ibv_cq_init_attr_ex *cq_attr,
 #endif /* HAVE_DECL_IBV_CREATE_CQ_ATTR_IGNORE_OVERRUN */
 }
 #endif /* HAVE_DECL_IBV_CREATE_CQ_EX */
+
+END_C_DECLS
 
 #endif

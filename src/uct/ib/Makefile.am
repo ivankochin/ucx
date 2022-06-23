@@ -23,10 +23,10 @@ noinst_HEADERS = \
 	base/ib_verbs.h
 
 libuct_ib_la_SOURCES = \
-	base/ib_device.c \
-	base/ib_iface.c \
-	base/ib_log.c \
-	base/ib_md.c
+	base/ib_device.cc \
+	base/ib_iface.cc \
+	base/ib_log.cc \
+	base/ib_md.cc
 
 # TODO separate module for mlx5
 if HAVE_MLX5_HW
@@ -130,7 +130,7 @@ libuct_ib_la_SOURCES += \
 	ud/base/ud_iface.c \
 	ud/base/ud_ep.c \
 	ud/base/ud_log.c \
-	ud/verbs/ud_verbs.c
+	ud/verbs/ud_verbs.cc
 
 
 if HAVE_MLX5_HW_UD
@@ -139,7 +139,7 @@ noinst_HEADERS += \
 	ud/accel/ud_mlx5.h
 
 libuct_ib_la_SOURCES += \
-	ud/accel/ud_mlx5_common.c \
+	ud/accel/ud_mlx5_common.cc \
 	ud/accel/ud_mlx5.c
 endif # HAVE_MLX5_HW_UD
 

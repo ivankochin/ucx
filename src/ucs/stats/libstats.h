@@ -56,7 +56,7 @@ struct ucs_stats_class {
     const char           *name;
     unsigned             num_counters;
     unsigned             class_id;
-    const char*          counter_names[];
+    const char*          counter_names[256]; // TODO: Bring back dynamic size (for example replace to pointer)
 };
 
 /*

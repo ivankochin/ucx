@@ -146,7 +146,7 @@ typedef void (*uct_component_md_vfs_init_func_t)(uct_md_h md);
  * Defines a UCT component
  */
 struct uct_component {
-    const char                              name[UCT_COMPONENT_NAME_MAX]; /**< Component name */
+    const char                              *name; /**< Component name */
     uct_component_query_md_resources_func_t query_md_resources; /**< Query memory domain resources method */
     uct_component_md_open_func_t            md_open;            /**< Memory domain open method */
     uct_component_cm_open_func_t            cm_open;            /**< Connection manager open method */
@@ -161,6 +161,9 @@ struct uct_component {
                                                                      UCT_COMPONENT_FLAG_xx */
     /**< Memory domain initialize VFS method */
     uct_component_md_vfs_init_func_t        md_vfs_init;
+#if __cplusplus
+    uct_component(const char* name) : name(name) {}
+#endif
 };
 
 

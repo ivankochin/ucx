@@ -7,6 +7,10 @@
 #ifndef UCT_UD_EP_H
 #define UCT_UD_EP_H
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include "ud_def.h"
 
 #include <uct/api/uct.h>
@@ -16,6 +20,8 @@
 #include <ucs/datastruct/sglib.h>
 #include <ucs/datastruct/conn_match.h>
 #include <ucs/time/timer_wheel.h>
+
+BEGIN_C_DECLS
 
 #define UCT_UD_EP_NULL_ID     ((1<<24)-1)
 #define UCT_UD_EP_ID_MAX      UCT_UD_EP_NULL_ID
@@ -433,5 +439,7 @@ uct_ud_neth_ack_req(uct_ud_ep_t *ep, uct_ud_neth_t *neth)
     neth->packet_type |= uct_ud_ep_req_ack(ep) << UCT_UD_PACKET_ACK_REQ_SHIFT;
     uct_ud_ep_ctl_op_del(ep, UCT_UD_EP_OP_ACK|UCT_UD_EP_OP_ACK_REQ);
 }
+
+END_C_DECLS
 
 #endif

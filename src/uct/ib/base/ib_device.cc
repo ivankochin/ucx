@@ -326,7 +326,7 @@ void uct_ib_device_async_event_unregister(uct_ib_device_t *dev,
 static void uct_ib_async_event_handler(int fd, ucs_event_set_types_t events,
                                        void *arg)
 {
-    uct_ib_device_t *dev = arg;
+    uct_ib_device_t *dev = (uct_ib_device_t *)arg;
     struct ibv_async_event ibevent;
     uct_ib_async_event_t event;
     int ret;
@@ -1152,7 +1152,7 @@ ucs_status_t uct_ib_device_query_ports(uct_ib_device_t *dev, unsigned flags,
 
     /* Allocate resources array
      * We may allocate more memory than really required, but it's not so bad. */
-    tl_devices = ucs_calloc(dev->num_ports, sizeof(*tl_devices), "ib device resource");
+    tl_devices = (uct_tl_device_resource_t *)ucs_calloc(dev->num_ports, sizeof(*tl_devices), "ib device resource");
     if (tl_devices == NULL) {
         status = UCS_ERR_NO_MEMORY;
         goto err;
@@ -1206,7 +1206,8 @@ ucs_status_t uct_ib_device_find_port(uct_ib_device_t *dev,
     size_t devname_len;
     char *p;
 
-    p = strrchr(resource_dev_name, ':');
+    //TODO: strrchr return char* with regard to cppreference, but here it returns cosnt char*
+    p = (char*)strrchr(resource_dev_name, ':');
     if (p == NULL) {
         goto err; /* Wrong device name format */
     }

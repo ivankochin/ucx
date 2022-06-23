@@ -8,12 +8,17 @@
 #define UCS_LIST_H_
 
 #include <ucs/sys/compiler_def.h>
-
+#include <stdio.h>
 
 BEGIN_C_DECLS
 
+#if __cplusplus
+#define UCS_LIST_INITIALIZER(_prev, _next) \
+     ucs_list_link_t((_prev), (_next))
+#else
 #define UCS_LIST_INITIALIZER(_prev, _next) \
     { (_prev), (_next) }
+#endif
 
 
 /**
@@ -29,6 +34,10 @@ BEGIN_C_DECLS
 typedef struct ucs_list_link {
     struct ucs_list_link  *prev;
     struct ucs_list_link  *next;
+#if __cplusplus
+    ucs_list_link() : prev(0), next(0) {}
+    ucs_list_link(ucs_list_link *in_prev, ucs_list_link *in_next) : prev(in_prev), next(in_next) {}
+#endif
 } ucs_list_link_t;
 
 
@@ -102,8 +111,10 @@ static inline void ucs_list_insert_before(ucs_list_link_t *pos,
  */
 static inline void ucs_list_del(ucs_list_link_t *elem)
 {
-    elem->prev->next = elem->next;
-    elem->next->prev = elem->prev;
+    if (elem->prev)
+        elem->prev->next = elem->next;
+    if (elem->next)
+        elem->next->prev = elem->prev;
 }
 
 /**

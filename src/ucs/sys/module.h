@@ -8,9 +8,14 @@
 #ifndef UCS_MODULE_H_
 #define UCS_MODULE_H_
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <ucs/type/init_once.h>
 #include <ucs/sys/compiler_def.h>
 
+BEGIN_C_DECLS
 
 /**
  * Flags for @ref UCS_MODULE_FRAMEWORK_LOAD
@@ -92,5 +97,6 @@ typedef enum {
 void ucs_load_modules(const char *framework, const char *modules,
                       ucs_init_once_t *init_once, unsigned flags);
 
+END_C_DECLS
 
 #endif
