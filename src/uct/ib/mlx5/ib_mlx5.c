@@ -68,43 +68,13 @@ ucs_config_field_t uct_ib_mlx5_iface_config_table[] = {
      "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n",
      ucs_offsetof(uct_ib_mlx5_iface_config_t, ar_enable), UCS_CONFIG_TYPE_TERNARY_AUTO},
 
-    {"CQE_ZIPPING_ENABLE", "no",
+    {"CQE_ZIPPING_ENABLE", "try",
      "Enable CQE zipping feature. CQE zipping reduces PCI utilization by\n"
      "merging several similar CQEs to a single CQE written by the device.",
      ucs_offsetof(uct_ib_mlx5_iface_config_t, cqe_zipping_enable), UCS_CONFIG_TYPE_TERNARY},
 
     {NULL}
 };
-
-#if HAVE_DECL_MLX5DV_CQ_INIT_ATTR_MASK_CQE_SIZE
-static ucs_status_t
-uct_ib_mlx5_set_cqe_zipping(uct_ib_mlx5_md_t* md,
-                            struct mlx5dv_cq_init_attr* dv_attr,
-                            const uct_ib_mlx5_iface_config_t* mlx5_config)
-{
-#if HAVE_DECL_MLX5DV_CQ_INIT_ATTR_MASK_COMPRESSED_CQE
-    if (mlx5_config->cqe_zipping_enable == UCS_NO) {
-        return UCS_OK;
-    }
-
-    if (((dv_attr->cqe_size == 64)  && (md->flags & UCT_IB_MLX5_MD_FLAG_CQE64_ZIP)) ||
-        ((dv_attr->cqe_size == 128) && (md->flags & UCT_IB_MLX5_MD_FLAG_CQE128_ZIP))) {
-        dv_attr->comp_mask          |= MLX5DV_CQ_INIT_ATTR_MASK_COMPRESSED_CQE;
-        dv_attr->cqe_comp_res_format = MLX5DV_CQE_RES_FORMAT_CSUM;
-        return UCS_OK;
-    }
-
-    if (mlx5_config->cqe_zipping_enable == UCS_YES) {
-        ucs_error("%s: CQE_ZIPPING_ENABLE option set to \"yes\", but this "
-                  "feature is unsupported by device.",
-                  uct_ib_device_name(&md->super.dev));
-        return UCS_ERR_UNSUPPORTED;
-    }
-#endif
-
-    return UCS_OK;
-}
-#endif
 
 ucs_status_t
 uct_ib_mlx5_create_cq(uct_ib_iface_t *iface, uct_ib_dir_t dir,
@@ -124,16 +94,18 @@ uct_ib_mlx5_create_cq(uct_ib_iface_t *iface, uct_ib_dir_t dir,
     char message[128];
     int cq_errno;
 
+    if (mlx5_config->cqe_zipping_enable == UCS_YES) {
+        ucs_error("%s: CQE_ZIPPING_ENABLE option set to \"yes\", but this "
+                  "feature is unsupported by this configuration or device.",
+                  uct_ib_device_name(&md->super.dev));
+        return UCS_ERR_UNSUPPORTED;
+    }
+
     uct_ib_fill_cq_attr(&cq_attr, init_attr, iface, preferred_cpu,
                         uct_ib_cq_size(iface, init_attr, dir));
 
     dv_attr.comp_mask = MLX5DV_CQ_INIT_ATTR_MASK_CQE_SIZE;
     dv_attr.cqe_size  = uct_ib_get_cqe_size(inl > 32 ? 128 : 64);
-
-    status = uct_ib_mlx5_set_cqe_zipping(md, &dv_attr, mlx5_config);
-    if (status != UCS_OK) {
-        return status;
-    }
 
     cq = ibv_cq_ex_to_cq(mlx5dv_create_cq(dev->ibv_context, &cq_attr, &dv_attr));
     if (cq == NULL) {
@@ -205,6 +177,7 @@ ucs_status_t uct_ib_mlx5_get_cq(struct ibv_cq *cq, uct_ib_mlx5_cq_t *mlx5_cq)
     mlx5_cq->uar       = uct_dv_get_info_uar0(dcq.dv.uar);
 #endif
     mlx5_cq->dbrec     = dcq.dv.dbrec;
+    mlx5_cq->validity_it_count = 0;
     cqe_size           = dcq.dv.cqe_size;
     /* initializing memory is required for checking the cq_unzip.current_idx */
     memset(&mlx5_cq->cq_unzip, 0, sizeof(uct_ib_mlx5_cq_unzip_t));
@@ -378,20 +351,23 @@ ucs_status_t uct_ib_mlx5_get_compact_av(uct_ib_iface_t *iface, int *compact_av)
 }
 #endif
 
-void uct_ib_mlx5_iface_cqe_unzip_init(struct mlx5_cqe64 *title_cqe,
-                                      uct_ib_mlx5_cq_t *cq)
+void uct_ib_mlx5_iface_cqe_unzip_init(uct_ib_mlx5_cq_t *cq)
 {
     uct_ib_mlx5_cq_unzip_t *cq_unzip = &cq->cq_unzip;
-    struct mlx5_cqe64 *mini_cqe      = uct_ib_mlx5_get_cqe(cq, cq->cq_ci + 1);
+    struct mlx5_cqe64 *title_cqe     = uct_ib_mlx5_get_cqe(cq, cq->cq_ci - 1);
+    struct mlx5_cqe64 *mini_cqe      = uct_ib_mlx5_get_cqe(cq, cq->cq_ci);
 
-    memcpy(&cq_unzip->title, title_cqe, sizeof(cq_unzip->title));
-    memcpy(&cq_unzip->mini_arr, mini_cqe, sizeof(cq_unzip->mini_arr));
-    cq_unzip->block_size    = ntohl(title_cqe->byte_cnt);
-    cq_unzip->wqe_counter   = ntohs(title_cqe->wqe_counter);
-    cq_unzip->title_cq_idx  = cq->cq_ci;
-
-    /* Clear the title CQE format */
-    cq_unzip->title.op_own &= ~UCT_IB_MLX5_CQE_FORMAT_MASK;
+    if (cq->cq_unzip.zipped_block_seq_flag == 0) {
+        memcpy(&cq_unzip->title, title_cqe, sizeof(cq_unzip->title));
+        cq_unzip->wqe_counter     = ntohs(title_cqe->wqe_counter);
+    } else {
+        cq_unzip->wqe_counter     += cq_unzip->block_size;
+    }
+    memcpy(&cq_unzip->mini_arr, mini_cqe,
+           sizeof(uct_ib_mlx5_mini_cqe8_t) * UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE);
+    cq_unzip->block_size      = (mini_cqe->op_own >> 4) + 1;
+    ucs_assert(cq_unzip->block_size <= 7);
+    cq_unzip->miniarr_cq_idx  = cq->cq_ci;
 }
 
 static void
@@ -424,29 +400,23 @@ struct mlx5_cqe64 *uct_ib_mlx5_iface_cqe_unzip(uct_ib_mlx5_cq_t *cq)
     struct mlx5_cqe64 *title_cqe      = &cq_unzip->title;
     uct_ib_mlx5_mini_cqe8_t *mini_cqe = &cq_unzip->mini_arr[mini_cqe_idx];
     struct mlx5_cqe64 *cqe;
-    unsigned next_arr_size;
-
-    uct_ib_mlx5_iface_cqe_unzip_fill_unique(title_cqe, mini_cqe, cq_unzip);
+    unsigned next_cqe_idx;
 
     cq_unzip->current_idx++;
 
+    uct_ib_mlx5_iface_cqe_unzip_fill_unique(title_cqe, mini_cqe, cq_unzip);
+    cq->cq_unzip.zipped_block_seq_flag = 1;
+
     if (cq_unzip->current_idx < cq_unzip->block_size) {
-        cqe = uct_ib_mlx5_get_cqe(cq, cq_unzip->title_cq_idx + 
-                                  cq_unzip->current_idx);
+        next_cqe_idx = cq_unzip->miniarr_cq_idx + cq_unzip->current_idx;
+        cqe = uct_ib_mlx5_get_cqe(cq, next_cqe_idx);
 
-        if (mini_cqe_idx == (UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE - 1)) {
-            /* Get the next mini_cqe array */
-            next_arr_size = ucs_min(sizeof(*mini_cqe) * cq_unzip->current_idx,
-                                    sizeof(*cqe));
-            memcpy(&cq_unzip->mini_arr, cqe, next_arr_size);
-        }
-
-        /* Update opcode and CQE format in the next CQE buffer
-         * (title shouldn't be updated).
-         * CQE format is used for simplifying the zipped CQE detection
-         * during the poll
+        /* Update opcode and signature in the next CQE buffer.
+         * Signature is used for simplifying the zipped CQE detection
+         * during the poll.
          */
-        cqe->op_own = title_cqe->op_own | UCT_IB_MLX5_CQE_FORMAT_MASK;
+        cqe->op_own = UCT_IB_MLX5_CQE_FORMAT_MASK;
+        cqe->signature = (next_cqe_idx / cq->cq_length) % 256;
     } else {
         cq_unzip->current_idx = 0;
     }

@@ -8,13 +8,13 @@
 
 extern "C" {
 #include <uct/api/uct.h>
+#include <uct/ib/mlx5/ib_mlx5.h>
 #include <uct/ib/base/ib_iface.h>
 }
 
 #define UCT_INSTANTIATE_MLX5_TEST_CASE(_test_case) \
     _UCT_INSTANTIATE_TEST_CASE(_test_case, rc_mlx5) \
-    _UCT_INSTANTIATE_TEST_CASE(_test_case, dc_mlx5) \
-    _UCT_INSTANTIATE_TEST_CASE(_test_case, ud_mlx5)
+    _UCT_INSTANTIATE_TEST_CASE(_test_case, dc_mlx5)
 
 class test_cqe_zipping : public test_uct_ib_with_specific_port {
 public:
@@ -41,7 +41,7 @@ public:
          * Local deadline prevents hanging inside receive loop in case of
          * connectivity issues
          */
-        const ucs_time_t deadline = ucs::get_deadline(60);
+        const ucs_time_t deadline = ucs::get_deadline(600);
         while ((m_send_cnt != m_recv_cnt) && (ucs_get_time() < deadline)) {
             progress();
         }
@@ -68,10 +68,13 @@ public:
     virtual void init()
     {
         stats_activate();
-        modify_config("IB_CQE_ZIPPING_ENABLE", "y");
 
         test_uct_ib_with_specific_port::init();
         test_uct_ib::init();
+
+        if (!check_ib_mlx5_md_caps(UCT_IB_MLX5_MD_FLAG_ZIP_EN)) {
+            UCS_TEST_SKIP_R("unsupported");
+        }
 
         uct_iface_set_am_handler(receiver()->iface(), 0, am_cb, &m_recv_cnt, 0);
         m_send_buf = new mapped_buffer(m_buf_size, 0, *sender());
@@ -81,6 +84,17 @@ public:
     {
         uct_test::flush();
         m_send_cnt = m_recv_cnt = 0;
+    }
+
+    bool check_ib_mlx5_md_caps(uint64_t flags) {
+        uct_ib_mlx5_md_t *md = NULL;
+        FOR_EACH_ENTITY(entity) {
+            md = ucs_derived_of((*entity)->md(), uct_ib_mlx5_md_t);
+            if (!(ucs_test_all_flags(md->flags, flags))) {
+                return false;
+            }
+        }
+        return true;
     }
 
 private:
@@ -131,7 +145,8 @@ private:
 /* We test only ZCOPY with 4K size messages due to good PCI load and stably
  * CQE zipping reproducing on all platforms.
  */
-UCS_TEST_P(test_cqe_zipping, zcopy)
+UCS_TEST_SKIP_COND_P(test_cqe_zipping, zcopy,
+                     !check_ib_mlx5_md_caps(UCT_IB_MLX5_MD_FLAG_ZIP_EN))
 {
     int deadline_seconds      = is_cqe_zipping_expected() ? 90 : 5;
     const ucs_time_t deadline = ucs::get_deadline(deadline_seconds);

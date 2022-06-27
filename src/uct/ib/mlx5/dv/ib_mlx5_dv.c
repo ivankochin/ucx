@@ -568,6 +568,33 @@ uct_ib_mlx5_devx_query_qp_peer_info(uct_ib_iface_t *iface, uct_ib_mlx5_qp_t *qp,
     return UCS_OK;
 }
 
+static ucs_status_t
+uct_ib_mlx5_devx_set_cqe_zipping(uct_ib_mlx5_md_t *md,
+                                 const uct_ib_mlx5_iface_config_t *mlx5_config,
+                                 int cqe_size, void *cqctx)
+{
+    if (mlx5_config->cqe_zipping_enable == UCS_NO) {
+        return UCS_OK;
+    }
+
+    if ((md->flags & UCT_IB_MLX5_MD_FLAG_ZIP_EN) &&
+        (((cqe_size == 64)  && (md->flags & UCT_IB_MLX5_MD_FLAG_CQE64_ZIP)) ||
+         ((cqe_size == 128) && (md->flags & UCT_IB_MLX5_MD_FLAG_CQE128_ZIP)))) {
+        UCT_IB_MLX5DV_SET(cqc, cqctx, cqe_comp_en, 1);
+        UCT_IB_MLX5DV_SET(cqc, cqctx, cqe_comp_layout, 1);
+        return UCS_OK;
+    }
+
+    if (mlx5_config->cqe_zipping_enable == UCS_YES) {
+        ucs_error("%s: CQE_ZIPPING_ENABLE option set to \"yes\", but this "
+                  "feature is unsupported by device.",
+                  uct_ib_device_name(&md->super.dev));
+        return UCS_ERR_UNSUPPORTED;
+    }
+
+    return UCS_OK;
+}
+
 ucs_status_t
 uct_ib_mlx5_devx_create_cq(uct_ib_iface_t *iface, uct_ib_dir_t dir,
                            const uct_ib_mlx5_iface_config_t *mlx5_config,
@@ -639,9 +666,13 @@ uct_ib_mlx5_devx_create_cq(uct_ib_iface_t *iface, uct_ib_dir_t dir,
 
     UCT_IB_MLX5DV_SET(cqc, cqctx, log_cq_size, log_cq_size);
     UCT_IB_MLX5DV_SET(cqc, cqctx, cqe_sz, (cqe_size == 128) ? 1 : 0);
-	UCT_IB_MLX5DV_SET(cqc, cqctx, cqe_comp_en, mlx5_config->cqe_zipping_enable);
     if (!UCS_ENABLE_ASSERT && (init_attr->flags & UCT_IB_CQ_IGNORE_OVERRUN)) {
         UCT_IB_MLX5DV_SET(cqc, cqctx, oi, 1);
+    }
+
+    status = uct_ib_mlx5_devx_set_cqe_zipping(md, mlx5_config, cqe_size, cqctx);
+    if (status != UCS_OK) {
+        goto err_free_mem;
     }
 
     cq->devx.obj = uct_ib_mlx5_devx_obj_create(dev->ibv_context, in, sizeof(in),
@@ -659,6 +690,9 @@ uct_ib_mlx5_devx_create_cq(uct_ib_iface_t *iface, uct_ib_dir_t dir,
     cq->cq_num    = UCT_IB_MLX5DV_GET(create_cq_out, out, cqn);
     cq->uar       = cq->devx.uar->uar->base_addr;
     cq->dbrec     = cq->devx.dbrec->db;
+    cq->validity_it_count = UCT_IB_MLX5DV_GET(cqc, cqctx, cqe_comp_layout);
+
+    // printf("Create CQ %p via DEVX, validity_it_count : %d\n", cq, cq->validity_it_count);
 
     /* initializing memory is required for checking the cq_unzip.current_idx */
     memset(&cq->cq_unzip, 0, sizeof(uct_ib_mlx5_cq_unzip_t));
@@ -679,8 +713,9 @@ uct_ib_mlx5_devx_create_cq(uct_ib_iface_t *iface, uct_ib_dir_t dir,
      */
     for (i = 0; i < cq->cq_length; ++i) {
         cqe = uct_ib_mlx5_get_cqe(cq, i);
-        cqe->op_own |= MLX5_CQE_OWNER_MASK;
-        cqe->op_own |= MLX5_CQE_INVALID << 4;
+        cqe->op_own   |= MLX5_CQE_OWNER_MASK;
+        cqe->op_own   |= MLX5_CQE_INVALID << 4;
+        cqe->signature = 0xff;
     }
 
     iface->config.max_inl_cqe[dir] = (inl > 0) ? (cqe_size / 2) : 0;

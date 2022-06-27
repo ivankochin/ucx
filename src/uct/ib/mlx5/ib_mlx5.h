@@ -64,7 +64,7 @@
 #define UCT_IB_MLX5_CQE_FLAG_L3_IN_DATA  UCS_BIT(28) /* GRH/IP in the receive buffer */
 #define UCT_IB_MLX5_CQE_FLAG_L3_IN_CQE   UCS_BIT(29) /* GRH/IP in the CQE */
 #define UCT_IB_MLX5_CQE_FORMAT_MASK      0xc
-#define UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE 8
+#define UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE 7
 #define UCT_IB_MLX5_MP_RQ_BYTE_CNT_MASK  0x0000FFFF  /* Byte count mask for multi-packet RQs */
 #define UCT_IB_MLX5_MP_RQ_FIRST_MSG_FLAG UCS_BIT(29) /* MP first packet indication */
 #define UCT_IB_MLX5_MP_RQ_LAST_MSG_FLAG  UCS_BIT(30) /* MP last packet indication */
@@ -184,8 +184,10 @@ enum {
     UCT_IB_MLX5_MD_FLAG_CQE64_ZIP            = UCS_BIT(10),
     /* Device supports 128B CQE zipping */
     UCT_IB_MLX5_MD_FLAG_CQE128_ZIP           = UCS_BIT(11),
+    /* Device supports enhanced CQE zipping */
+    UCT_IB_MLX5_MD_FLAG_ZIP_EN               = UCS_BIT(12),
     /* Device performance is optimized when RDMA_WRITE is not used */
-    UCT_IB_MLX5_MD_FLAG_NO_RDMA_WR_OPTIMIZED = UCS_BIT(12),
+    UCT_IB_MLX5_MD_FLAG_NO_RDMA_WR_OPTIMIZED = UCS_BIT(13),
 
     /* Object to be created by DevX */
     UCT_IB_MLX5_MD_FLAG_DEVX_OBJS_SHIFT  = 16,
@@ -380,9 +382,11 @@ typedef struct {
     /* Number of unhandled CQE in compression block */
     uint32_t                current_idx;
     /* Title CQ index */
-    uint32_t                title_cq_idx;
+    uint32_t                miniarr_cq_idx;
     /* Title wqe counter */
     uint16_t                wqe_counter;
+    /* Marks sequence of zipping blocks*/
+    uint8_t                 zipped_block_seq_flag;
 } uct_ib_mlx5_cq_unzip_t;
 
 
@@ -418,6 +422,7 @@ typedef struct uct_ib_mlx5_cq {
     unsigned               cq_num;
     void                   *uar;
     volatile uint32_t      *dbrec;
+    uint8_t                validity_it_count;
     uct_ib_mlx5_cq_unzip_t cq_unzip;
     union {
         struct {
@@ -648,8 +653,7 @@ ucs_status_t uct_ib_mlx5dv_arm_cq(uct_ib_mlx5_cq_t *cq, int solicited);
  * @param title_cqe The CQE that contains the title of the compression block.
  * @param cq        CQ that contains the title.
  */
-void uct_ib_mlx5_iface_cqe_unzip_init(struct mlx5_cqe64 *title_cqe,
-                                      uct_ib_mlx5_cq_t *cq);
+void uct_ib_mlx5_iface_cqe_unzip_init(uct_ib_mlx5_cq_t *cq);
 
 /**
  * Unzip the next CQE. Should be used only when cq_unzip->current_idx > 0.

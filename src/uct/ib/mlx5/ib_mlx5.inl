@@ -90,10 +90,13 @@ uct_ib_mlx5_check_and_init_zipped(uct_ib_mlx5_cq_t *cq, struct mlx5_cqe64 *cqe)
     if (cq->cq_unzip.current_idx > 0) {
         return 1;
     } else if ((cqe->op_own & UCT_IB_MLX5_CQE_FORMAT_MASK) == UCT_IB_MLX5_CQE_FORMAT_MASK) {
+        ucs_assert(cq->cq_ci > 0);
         /* First zipped CQE in the sequence */
-        uct_ib_mlx5_iface_cqe_unzip_init(cqe, cq);
+        uct_ib_mlx5_iface_cqe_unzip_init(cq);
         return 1;
     }
+
+    cq->cq_unzip.zipped_block_seq_flag = 0;
     return 0;
 }
 
@@ -104,17 +107,25 @@ uct_ib_mlx5_poll_cq(uct_ib_iface_t *iface, uct_ib_mlx5_cq_t *cq)
     struct mlx5_cqe64 *cqe;
     unsigned cqe_index;
     uint8_t op_own;
+    uint8_t is_hw_owned;
 
     cqe_index = cq->cq_ci;
     cqe       = uct_ib_mlx5_get_cqe(cq, cqe_index);
     op_own    = cqe->op_own;
 
-    if (ucs_unlikely(uct_ib_mlx5_cqe_is_hw_owned(op_own, cqe_index, cq->cq_length))) {
+    if (cq->validity_it_count) {
+        is_hw_owned = (cqe->signature != ((cqe_index / cq->cq_length) % 256));
+    } else {
+        is_hw_owned = uct_ib_mlx5_cqe_is_hw_owned(op_own, cqe_index, cq->cq_length);
+    }
+
+    if (is_hw_owned) {
         return NULL;
     } else if (ucs_unlikely(uct_ib_mlx5_cqe_is_error_or_zipped(op_own))) {
         return uct_ib_mlx5_check_completion(iface, cq, cqe);
     }
 
+    cq->cq_unzip.zipped_block_seq_flag = 0;
     cq->cq_ci = cqe_index + 1;
     return cqe;
 }

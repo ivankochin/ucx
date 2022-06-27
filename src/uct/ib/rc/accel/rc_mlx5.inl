@@ -268,6 +268,7 @@ uct_rc_mlx5_iface_poll_rx_cq(uct_rc_mlx5_iface_common_t *iface, int poll_flags)
     struct mlx5_cqe64 *cqe;
     unsigned idx;
     uint8_t op_own;
+    uint8_t is_hw_owned;
 
     /* Prefetch the descriptor if it was scheduled */
     ucs_prefetch(iface->rx.pref_ptr);
@@ -276,12 +277,19 @@ uct_rc_mlx5_iface_poll_rx_cq(uct_rc_mlx5_iface_common_t *iface, int poll_flags)
     cqe    = uct_ib_mlx5_get_cqe(cq, idx);
     op_own = cqe->op_own;
 
-    if (ucs_unlikely(uct_ib_mlx5_cqe_is_hw_owned(op_own, idx, cq->cq_length))) {
+    if (cq->validity_it_count) {
+        is_hw_owned = (cqe->signature != ((idx / cq->cq_length) % 256));
+    } else {
+        is_hw_owned = uct_ib_mlx5_cqe_is_hw_owned(op_own, idx, cq->cq_length);
+    }
+
+    if (is_hw_owned) {
         return NULL;
     } else if (ucs_unlikely(uct_ib_mlx5_cqe_is_error_or_zipped(op_own))) {
         return uct_rc_mlx5_iface_check_rx_completion(iface, cqe, poll_flags);
     }
 
+    cq->cq_unzip.zipped_block_seq_flag = 0;
     cq->cq_ci = idx + 1;
     return cqe; /* TODO optimize - let complier know cqe is not null */
 }

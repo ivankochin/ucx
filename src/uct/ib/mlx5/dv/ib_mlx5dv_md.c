@@ -988,6 +988,10 @@ static ucs_status_t uct_ib_mlx5_devx_md_open(struct ibv_device *ibv_device,
         md->flags |= UCT_IB_MLX5_MD_FLAG_CQE64_ZIP;
     }
 
+    if (UCT_IB_MLX5DV_GET(cmd_hca_cap, cap, enhanced_cqe_compression)) {
+        md->flags |= UCT_IB_MLX5_MD_FLAG_ZIP_EN;
+    }
+
     if (UCT_IB_MLX5DV_GET(cmd_hca_cap, cap,
                           dci_no_rdma_wr_optimized_performance)) {
         md->flags |= UCT_IB_MLX5_MD_FLAG_NO_RDMA_WR_OPTIMIZED;
