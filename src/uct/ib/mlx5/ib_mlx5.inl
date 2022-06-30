@@ -106,22 +106,24 @@ uct_ib_mlx5_poll_cq(uct_ib_iface_t *iface, uct_ib_mlx5_cq_t *cq)
 {
     struct mlx5_cqe64 *cqe;
     unsigned cqe_index;
-    uint8_t op_own;
     uint8_t is_hw_owned;
 
     cqe_index = cq->cq_ci;
     cqe       = uct_ib_mlx5_get_cqe(cq, cqe_index);
-    op_own    = cqe->op_own;
 
     if (cq->validity_it_count) {
         is_hw_owned = (cqe->signature != ((cqe_index / cq->cq_length) % 256));
     } else {
-        is_hw_owned = uct_ib_mlx5_cqe_is_hw_owned(op_own, cqe_index, cq->cq_length);
+        is_hw_owned = uct_ib_mlx5_cqe_is_hw_owned(cqe->op_own, cqe_index, cq->cq_length);
     }
 
     if (is_hw_owned) {
         return NULL;
-    } else if (ucs_unlikely(uct_ib_mlx5_cqe_is_error_or_zipped(op_own))) {
+    }
+
+    ucs_memory_cpu_load_fence();
+
+    if (ucs_unlikely(uct_ib_mlx5_cqe_is_error_or_zipped(cqe->op_own))) {
         return uct_ib_mlx5_check_completion(iface, cq, cqe);
     }
 

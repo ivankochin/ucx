@@ -267,25 +267,27 @@ uct_rc_mlx5_iface_poll_rx_cq(uct_rc_mlx5_iface_common_t *iface, int poll_flags)
     uct_ib_mlx5_cq_t *cq = &iface->cq[UCT_IB_DIR_RX];
     struct mlx5_cqe64 *cqe;
     unsigned idx;
-    uint8_t op_own;
     uint8_t is_hw_owned;
 
     /* Prefetch the descriptor if it was scheduled */
     ucs_prefetch(iface->rx.pref_ptr);
 
-    idx    = cq->cq_ci;
-    cqe    = uct_ib_mlx5_get_cqe(cq, idx);
-    op_own = cqe->op_own;
+    idx = cq->cq_ci;
+    cqe = uct_ib_mlx5_get_cqe(cq, idx);
 
     if (cq->validity_it_count) {
         is_hw_owned = (cqe->signature != ((idx / cq->cq_length) % 256));
     } else {
-        is_hw_owned = uct_ib_mlx5_cqe_is_hw_owned(op_own, idx, cq->cq_length);
+        is_hw_owned = uct_ib_mlx5_cqe_is_hw_owned(cqe->op_own, idx, cq->cq_length);
     }
 
     if (is_hw_owned) {
         return NULL;
-    } else if (ucs_unlikely(uct_ib_mlx5_cqe_is_error_or_zipped(op_own))) {
+    }
+
+    ucs_memory_cpu_load_fence();
+
+    if (ucs_unlikely(uct_ib_mlx5_cqe_is_error_or_zipped(cqe->op_own))) {
         return uct_rc_mlx5_iface_check_rx_completion(iface, cqe, poll_flags);
     }
 
