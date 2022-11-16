@@ -204,6 +204,14 @@ static ucs_stats_class_t uct_ib_iface_stats_class = {
     .counter_names = {
         [UCT_IB_IFACE_STAT_RX_COMPLETION]        = "rx_completion",
         [UCT_IB_IFACE_STAT_TX_COMPLETION]        = "tx_completion",
+        [UCT_IB_IFACE_STAT_RX_CHECK_CQE]         = "check_cqe_poll",
+        [UCT_IB_IFACE_STAT_HW_OWNED_POLL]        = "hw_owned_poll",
+        [UCT_IB_IFACE_STAT_POLL]                 = "poll",
+        [UCT_IB_IFACE_STAT_POLL_CYCLES]          = "poll_cycles",
+        [UCT_IB_IFACE_STAT_POLL_CHECK_CYCLES]    = "poll_check_cycles",
+        [UCT_IB_IFACE_STAT_POLL_USUAL_CYCLES]    = "poll_usual_cycles",
+        [UCT_IB_IFACE_STAT_POLL_EXTRA_CYCLES]    = "poll_extra_cycles",
+        [UCT_IB_IFACE_STAT_POLL_HW_OWNED_CYCLES] = "poll_hw_owned_cycles",
         [UCT_IB_IFACE_STAT_RX_COMPLETION_ZIPPED] = "rx_completion_zipped",
         [UCT_IB_IFACE_STAT_TX_COMPLETION_ZIPPED] = "tx_completion_zipped"
     }

@@ -397,6 +397,9 @@ typedef struct {
     uint16_t                wqe_counter;
     /* Have valid title CQE */
     uint8_t                 title_cqe_valid;
+
+    struct mlx5_cqe64* title_ptr;
+    uint8_t     is_zipped;
 } uct_ib_mlx5_cq_unzip_t;
 
 

@@ -4,6 +4,7 @@
  * See file LICENSE for terms.
  */
 
+#include "x86intrin.h"
 #include "ib_mlx5.h"
 
 typedef struct uct_ib_mlx5_wqe_ctrl_seg {
@@ -23,19 +24,34 @@ uct_ib_mlx5_get_cqe(uct_ib_mlx5_cq_t *cq,  unsigned cqe_index)
                                 cq->cqe_size_log);
 }
 
+static void UCS_F_ALWAYS_INLINE
+uct_ib_mlx5_update_cqe_zipping_stats(uct_ib_iface_t *iface,
+                                     uct_ib_mlx5_cq_t *cq)
+{
+    if ((cq->cq_unzip.title.op_own >> 4) == MLX5_CQE_REQ) {
+        UCS_STATS_UPDATE_COUNTER(iface->stats,
+                                 UCT_IB_IFACE_STAT_TX_COMPLETION_ZIPPED, 1);
+    } else {
+        UCS_STATS_UPDATE_COUNTER(iface->stats,
+                                 UCT_IB_IFACE_STAT_RX_COMPLETION_ZIPPED, 1);
+    }
+}
 
-static UCS_F_ALWAYS_INLINE int
+static UCS_F_ALWAYS_INLINE uint8_t
 uct_ib_mlx5_cqe_is_hw_owned(uct_ib_mlx5_cq_t *cq, struct mlx5_cqe64 *cqe,
                             unsigned cqe_index, int poll_flags)
 {
-    uint8_t sw_it_count = cqe_index >> cq->cq_length_log;
-    uint8_t hw_it_count;
+    // uint8_t sw_it_count = cqe_index >> cq->cq_length_log;
+    // uint8_t hw_it_count;
 
     if (poll_flags & UCT_IB_MLX5_POLL_FLAG_CQE_ZIP) {
-        hw_it_count = ((uint8_t *)cqe)[cq->own_field_offset];
-        return (sw_it_count ^ hw_it_count) & cq->own_mask;
+        // return ((cqe_index >> cq->cq_length_log) ^ cqe->signature) && 0xFF;
+        // hw_it_count = ((uint8_t *)cqe)[cq->own_field_offset];
+        // ucs_assert(hw_it_count == cqe->signature);
+        // ucs_assert(cq->own_mask == 0xFF);
+        return (cqe_index >> cq->cq_length_log) ^ cqe->signature;
     } else {
-        return (sw_it_count ^ cqe->op_own) & MLX5_CQE_OWNER_MASK;
+        return ((cqe_index >> cq->cq_length_log) ^ cqe->op_own) & MLX5_CQE_OWNER_MASK;
     }
 }
 
@@ -131,20 +147,73 @@ uct_ib_mlx5_poll_cq(uct_ib_iface_t *iface, uct_ib_mlx5_cq_t *cq, int poll_flags,
                     uct_ib_mlx5_check_compl_cb_t check_cqe_cb)
 {
     struct mlx5_cqe64 *cqe;
-    unsigned idx;
+    long idx;
+#ifdef ENABLE_STATS
+    long start, end;
+
+    start = __rdtsc();
+#endif
 
     idx = cq->cq_ci;
     cqe = uct_ib_mlx5_get_cqe(cq, idx);
+    UCS_STATS_UPDATE_COUNTER(iface->stats,
+                             UCT_IB_IFACE_STAT_POLL, 1);
 
     if (ucs_unlikely(uct_ib_mlx5_cqe_is_hw_owned(cq, cqe, idx, poll_flags))) {
+#ifdef ENABLE_STATS
+        end = __rdtsc();
+#endif
+        UCS_STATS_UPDATE_COUNTER(iface->stats,
+                                 UCT_IB_IFACE_STAT_HW_OWNED_POLL, 1);
+        UCS_STATS_UPDATE_COUNTER(iface->stats,
+                                 UCT_IB_IFACE_STAT_POLL_CYCLES, end - start);
+        UCS_STATS_UPDATE_COUNTER(iface->stats,
+                                 UCT_IB_IFACE_STAT_POLL_HW_OWNED_CYCLES, end - start);
         return NULL;
     }
 
     ucs_memory_cpu_load_fence();
 
     if (ucs_unlikely(uct_ib_mlx5_cqe_is_error_or_zipped(cqe->op_own))) {
-        return check_cqe_cb(iface, cq, cqe, poll_flags);
+        UCS_STATS_UPDATE_COUNTER(iface->stats,
+                                 UCT_IB_IFACE_STAT_RX_CHECK_CQE, 1);
+        cqe = check_cqe_cb(iface, cq, cqe, poll_flags);
+
+#ifdef ENABLE_STATS
+        end = __rdtsc();
+#endif
+        UCS_STATS_UPDATE_COUNTER(iface->stats,
+                                 UCT_IB_IFACE_STAT_POLL_CYCLES, end - start);
+        UCS_STATS_UPDATE_COUNTER(iface->stats,
+                                 UCT_IB_IFACE_STAT_POLL_CHECK_CYCLES, end - start);
+        return cqe;
     }
+
+    // extra_start = __rdtsc();
+    /* Extra-load to balance CQE zipping ON and OFF code pathes */
+    /*
+    cq->cq_unzip.is_zipped = uct_ib_mlx5_check_and_init_zipped(cq, cqe);
+    // uct_ib_mlx5_iface_cqe_unzip_init(cq);
+    {
+        uct_ib_mlx5_cq_unzip_t *cq_unzip = &cq->cq_unzip;
+        struct mlx5_cqe64 *title_cqe     = cqe;
+        struct mlx5_cqe64 *mini_cqe      = cqe;
+
+        memcpy(&cq_unzip->title, title_cqe, sizeof(cq_unzip->title));
+        cq_unzip->wqe_counter        = ntohs(title_cqe->wqe_counter);
+        // cq->cq_unzip.title_cqe_valid = 1;
+    
+        memcpy(&cq_unzip->mini_arr, mini_cqe,
+               sizeof(uct_ib_mlx5_mini_cqe8_t) * UCT_IB_MLX5_MINICQE_ARR_MAX_SIZE);
+        // cq_unzip->block_size = (mini_cqe->op_own >> 4) + 1;
+        // cq_unzip->miniarr_cq_idx = cq->cq_ci;
+    }
+    uct_ib_mlx5_update_cqe_zipping_stats(iface, cq);
+    cq->cq_unzip.title_ptr = uct_ib_mlx5_iface_cqe_unzip(cq);
+    end = __rdtsc();
+    UCS_STATS_UPDATE_COUNTER(iface->stats,
+                             UCT_IB_IFACE_STAT_POLL_EXTRA_CYCLES, end - extra_start);
+    */
 
     if (poll_flags & UCT_IB_MLX5_POLL_FLAG_CQE_ZIP) {
         /* Next zipped CQE should update title CQE */
@@ -152,6 +221,14 @@ uct_ib_mlx5_poll_cq(uct_ib_iface_t *iface, uct_ib_mlx5_cq_t *cq, int poll_flags,
     }
 
     cq->cq_ci = idx + 1;
+
+#ifdef ENABLE_STATS
+    end = __rdtsc();
+#endif
+    UCS_STATS_UPDATE_COUNTER(iface->stats,
+                             UCT_IB_IFACE_STAT_POLL_CYCLES, end - start);
+    UCS_STATS_UPDATE_COUNTER(iface->stats,
+                             UCT_IB_IFACE_STAT_POLL_USUAL_CYCLES, end - start);
     return cqe; /* TODO optimize - let complier know cqe is not null */
 }
 
@@ -626,15 +703,3 @@ uct_ib_mlx5_iface_fill_attr(uct_ib_iface_t *iface,
 }
 
 
-static void UCS_F_ALWAYS_INLINE
-uct_ib_mlx5_update_cqe_zipping_stats(uct_ib_iface_t *iface,
-                                     uct_ib_mlx5_cq_t *cq)
-{
-    if ((cq->cq_unzip.title.op_own >> 4) == MLX5_CQE_REQ) {
-        UCS_STATS_UPDATE_COUNTER(iface->stats,
-                                 UCT_IB_IFACE_STAT_TX_COMPLETION_ZIPPED, 1);
-    } else {
-        UCS_STATS_UPDATE_COUNTER(iface->stats,
-                                 UCT_IB_IFACE_STAT_RX_COMPLETION_ZIPPED, 1);
-    }
-}
