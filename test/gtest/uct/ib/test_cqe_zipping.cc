@@ -30,7 +30,7 @@ public:
 
     void send_while_possible()
     {
-        while (am_zcopy() != UCS_ERR_NO_RESOURCE) {
+        while (am_zcopy() != UCS_ERR_NO_RESOURCE) { // Change to bcopy
             ++m_send_cnt;
         }
     }
@@ -59,6 +59,7 @@ public:
             auto stats = ucs_derived_of(entity->iface(), uct_ib_iface_t)->stats;
             for (auto &counter : counters) {
                 zipped_cqes_count += UCS_STATS_GET_COUNTER(stats, counter);
+                printf("zip value: %d %d\n", (int)counter, (int)UCS_STATS_GET_COUNTER(stats, counter));
             }
         }
 #endif
@@ -68,8 +69,6 @@ public:
     virtual void init()
     {
         stats_activate();
-        modify_config("IB_TX_CQE_ZIP_ENABLE", "yes");
-        modify_config("IB_RX_CQE_ZIP_ENABLE", "yes");
 
         test_uct_ib_with_specific_port::init();
         test_uct_ib::init();
@@ -99,6 +98,33 @@ public:
             }
         }
         return true;
+    }
+
+    /* We test only ZCOPY with 4K size messages due to good PCI load and stably
+     * CQE zipping reproducing on all platforms.
+     */
+    void test()
+    {
+        int deadline_seconds      = is_cqe_zipping_expected() ? 10 : 5;
+        const ucs_time_t deadline = ucs::get_deadline(deadline_seconds);
+    
+        while ((ucs_get_time() < deadline)) { // && (get_total_zipped_count() == 0)) {
+            /* Flush resets the transort resources which were acquired during the
+             * previous iteration.
+             */
+            flush_and_reset();
+            send_while_possible();
+
+            // uct_test::flush();
+            printf("m_send_count %d\n", (int)m_send_cnt);
+            // sleep(1);
+
+            wait_for_completion();
+        }
+    
+        if (is_cqe_zipping_expected()) {
+            EXPECT_GT(get_total_zipped_count(), 0);
+        }
     }
 
 private:
@@ -141,31 +167,20 @@ private:
         return UCS_OK;
     }
 
-    static constexpr size_t m_buf_size = 2048;
+    static constexpr size_t m_buf_size = 512;
     size_t                  m_send_cnt = 0, m_recv_cnt = 0;
     mapped_buffer           *m_send_buf{nullptr};
 };
 
-/* We test only ZCOPY with 4K size messages due to good PCI load and stably
- * CQE zipping reproducing on all platforms.
- */
-UCS_TEST_P(test_cqe_zipping, zcopy)
+
+UCS_TEST_P(test_cqe_zipping, tx, "IB_TX_CQE_ZIP_ENABLE=yes")
 {
-    int deadline_seconds      = is_cqe_zipping_expected() ? 90 : 5;
-    const ucs_time_t deadline = ucs::get_deadline(deadline_seconds);
+    test();
+}
 
-    while ((ucs_get_time() < deadline) && (get_total_zipped_count() == 0)) {
-        /* Flush resets the transort resources which were acquired during the
-         * previous iteration.
-         */
-        flush_and_reset();
-        send_while_possible();
-        wait_for_completion();
-    }
-
-    if (is_cqe_zipping_expected()) {
-        EXPECT_GT(get_total_zipped_count(), 0);
-    }
+UCS_TEST_P(test_cqe_zipping, rx, "IB_RX_CQE_ZIP_ENABLE=yes")
+{
+    test();
 }
 
 UCT_INSTANTIATE_MLX5_TEST_CASE(test_cqe_zipping)
