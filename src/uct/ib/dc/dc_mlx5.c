@@ -274,6 +274,9 @@ uct_dc_mlx5_poll_tx(uct_dc_mlx5_iface_t *iface, int poll_flags)
     if (cqe == NULL) {
         return 0;
     }
+    if (cqe->op_own & UCT_IB_MLX5_CQE_OP_OWN_ERR_MASK) {
+        return 1;
+    }
     UCS_STATS_UPDATE_COUNTER(iface->super.super.super.stats,
                              UCT_IB_IFACE_STAT_TX_COMPLETION, 1);
 

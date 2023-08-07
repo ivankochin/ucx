@@ -110,7 +110,7 @@ uct_rc_mlx5_iface_check_rx_completion(uct_ib_iface_t   *ib_iface,
         uct_ib_mlx5_check_completion_with_err(&iface->super.super, cq, cqe);
     }
 
-    return NULL;
+    return cqe;
 }
 
 static UCS_F_ALWAYS_INLINE void
@@ -150,6 +150,9 @@ uct_rc_mlx5_iface_poll_tx(uct_rc_mlx5_iface_common_t *iface, int poll_flags)
                               poll_flags, uct_ib_mlx5_check_completion);
     if (cqe == NULL) {
         return 0;
+    }
+    if (cqe->op_own & UCT_IB_MLX5_CQE_OP_OWN_ERR_MASK) {
+        return 1;
     }
 
     UCS_STATS_UPDATE_COUNTER(iface->super.super.stats,

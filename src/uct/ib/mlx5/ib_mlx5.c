@@ -475,9 +475,10 @@ uct_ib_mlx5_check_completion(uct_ib_iface_t *iface, uct_ib_mlx5_cq_t *cq,
         UCS_STATIC_ASSERT(MLX5_CQE_INVALID & (UCT_IB_MLX5_CQE_OP_OWN_ERR_MASK >> 4));
         ucs_assert((cqe->op_own >> 4) != MLX5_CQE_INVALID);
         uct_ib_mlx5_check_completion_with_err(iface, cq, cqe);
+        return cqe;
     }
 
-    return NULL; /* No CQE */
+    ucs_fatal("wrong CQE type");
 }
 
 void uct_ib_mlx5_check_completion_with_err(uct_ib_iface_t *iface,

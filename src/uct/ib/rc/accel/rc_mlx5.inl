@@ -1426,6 +1426,10 @@ uct_rc_mlx5_iface_common_poll_rx(uct_rc_mlx5_iface_common_t *iface,
         count = 0;
         goto out;
     }
+    if (cqe->op_own & UCT_IB_MLX5_CQE_OP_OWN_ERR_MASK) {
+        count = 1;
+        goto out;
+    }
 
     ucs_memory_cpu_load_fence();
     UCS_STATS_UPDATE_COUNTER(iface->super.super.stats,
