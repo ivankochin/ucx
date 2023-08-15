@@ -1403,21 +1403,6 @@ ucp_wireup_am_bw_score_func(const ucp_worker_iface_t *wiface,
     return size / t * 1e-5;
 }
 
-static double ucp_wireup_get_lane_bw(ucp_worker_h worker,
-                                     const ucp_wireup_select_info_t *sinfo,
-                                     const ucp_address_entry_t *address)
-{
-    ucp_context_h context = worker->context;
-    const uct_iface_attr_t *iface_attr;
-    double bw_local, bw_remote;
-
-    iface_attr = ucp_worker_iface_get_attr(worker, sinfo->rsc_index);
-    bw_local   = ucp_tl_iface_bandwidth(context, &iface_attr->bandwidth);
-    bw_remote  = address[sinfo->addr_index].iface_attr.bandwidth;
-
-    return ucs_min(bw_local, bw_remote);
-}
-
 static unsigned
 ucp_wireup_add_fast_lanes(ucp_worker_h worker,
                           const ucp_wireup_select_params_t *select_params,
@@ -1426,32 +1411,25 @@ ucp_wireup_add_fast_lanes(ucp_worker_h worker,
                           ucp_wireup_select_context_t *select_ctx)
 {
     ucp_lane_index_t num_lanes = 0;
-    double max_bw              = 0;
+    double max_score           = 0;
     ucp_context_h context      = worker->context;
     const double max_ratio     = 1. / context->config.ext.multi_lane_max_ratio;
-    const ucp_address_entry_t *address_list;
     ucs_status_t status;
-    double lane_bw;
     const ucp_wireup_select_info_t *sinfo;
 
-    address_list = select_params->address->address_list;
-
-    /* Iterate over all elements and calculate max BW */
+    /* Iterate over all elements and calculate max score */
     ucs_array_for_each(sinfo, sinfo_array) {
-        lane_bw = ucp_wireup_get_lane_bw(worker, sinfo, address_list);
-        max_bw  = ucs_max(lane_bw, max_bw);
+        max_score = ucs_max(sinfo->score, max_score);
     }
 
-    /* Compare each element to max BW and filter only fast lanes */
+    /* Compare each element to max score and filter only fast lanes */
     ucs_array_for_each(sinfo, sinfo_array) {
-        lane_bw = ucp_wireup_get_lane_bw(worker, sinfo, address_list);
-
-        if (lane_bw < (max_bw * max_ratio)) {
+        if (sinfo->score < (max_score * max_ratio)) {
             ucs_trace(UCT_TL_RESOURCE_DESC_FMT
-                      " : bandwidth %.2f lower than %.2f x %.2f, dropping lane",
+                      " : score %.2f lower than %.2f x %.2f, dropping lane",
                       UCT_TL_RESOURCE_DESC_ARG(
                               &context->tl_rscs[sinfo->rsc_index].tl_rsc),
-                      lane_bw, max_ratio, max_bw);
+                      sinfo->score, max_ratio, max_score);
             continue;
         }
 
