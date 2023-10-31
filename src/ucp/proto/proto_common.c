@@ -13,6 +13,7 @@
 
 #include <ucp/am/ucp_am.inl>
 #include <uct/api/v2/uct_v2.h>
+#include <ucs/type/init_once.h>
 
 
 int ucp_proto_common_init_check_err_handling(
@@ -379,6 +380,33 @@ err_deref_perf_node:
     return status;
 }
 
+static const ucp_lane_index_t *
+ucp_proto_common_get_lanes_order(const ucp_ep_config_key_t *ep_config_key,
+                                 ucp_lane_type_t lane_type) {
+    static ucs_init_once_t init_once = UCS_INIT_ONCE_INITIALIZER;
+    static ucp_lane_index_t default_order[UCP_MAX_LANES];
+    int i;
+
+    UCS_INIT_ONCE(&init_once) {
+        for (i = 0; i < UCP_MAX_LANES; ++i) {
+            default_order[i] = i;
+        }
+    }
+
+    switch (lane_type) {
+    case UCP_LANE_TYPE_RMA:
+        return ep_config_key->rma_lanes;
+    case UCP_LANE_TYPE_RMA_BW:
+        return ep_config_key->rma_bw_lanes;
+    case UCP_LANE_TYPE_AM_BW:
+        return ep_config_key->am_bw_lanes;
+    case UCP_LANE_TYPE_AMO:
+        return ep_config_key->amo_lanes;
+    default:
+        return default_order;
+    }
+}
+
 static ucp_lane_index_t ucp_proto_common_find_lanes_internal(
         const ucp_proto_init_params_t *params, uct_ep_operation_t memtype_op,
         unsigned flags, ptrdiff_t max_iov_offs, size_t min_iov,
@@ -393,11 +421,11 @@ static ucp_lane_index_t ucp_proto_common_find_lanes_internal(
     const ucp_proto_select_param_t *select_param = params->select_param;
     const uct_iface_attr_t *iface_attr;
     ucp_lane_index_t lane, num_lanes;
+    const ucp_lane_index_t *lanes_order, *lane_it;
     const uct_md_attr_v2_t *md_attr;
     const uct_component_attr_t *cmpt_attr;
     ucp_rsc_index_t rsc_index;
     ucp_md_index_t md_index;
-    ucp_lane_map_t lane_map;
     char lane_desc[64];
     size_t max_iov;
 
@@ -434,8 +462,9 @@ static ucp_lane_index_t ucp_proto_common_find_lanes_internal(
         goto out;
     }
 
-    lane_map = UCS_MASK(ep_config_key->num_lanes) & ~exclude_map;
-    ucs_for_each_bit(lane, lane_map) {
+    lanes_order = ucp_proto_common_get_lanes_order(ep_config_key, lane_type);
+    for (lane_it = lanes_order; *lane_it != UCP_NULL_LANE; ++lane_it) {
+        lane = *lane_it;
         if (num_lanes >= max_lanes) {
             break;
         }
@@ -450,13 +479,13 @@ static ucp_lane_index_t ucp_proto_common_find_lanes_internal(
                  "lane[%d] " UCT_TL_RESOURCE_DESC_FMT, lane,
                  UCT_TL_RESOURCE_DESC_ARG(&context->tl_rscs[rsc_index].tl_rsc));
 
-        /* Check if lane type matches */
-        if ((lane_type != UCP_LANE_TYPE_LAST) &&
-            !(ep_config_key->lanes[lane].lane_types & UCS_BIT(lane_type))) {
-            ucs_trace("%s: no %s in name types", lane_desc,
-                      ucp_lane_type_info[lane_type].short_name);
-            continue;
-        }
+        // /* Check if lane type matches */
+        // if ((lane_type != UCP_LANE_TYPE_LAST) &&
+        //     !(ep_config_key->lanes[lane].lane_types & UCS_BIT(lane_type))) {
+        //     ucs_trace("%s: no %s in name types", lane_desc,
+        //               ucp_lane_type_info[lane_type].short_name);
+        //     continue;
+        // }
 
         /* Check iface capabilities */
         iface_attr = ucp_proto_common_get_iface_attr(params, lane);
