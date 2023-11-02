@@ -384,13 +384,14 @@ static const ucp_lane_index_t *
 ucp_proto_common_get_lanes_order(const ucp_ep_config_key_t *ep_config_key,
                                  ucp_lane_type_t lane_type) {
     static ucs_init_once_t init_once = UCS_INIT_ONCE_INITIALIZER;
-    static ucp_lane_index_t default_order[UCP_MAX_LANES];
+    static ucp_lane_index_t default_order[UCP_MAX_LANES + 1];
     int i;
 
     UCS_INIT_ONCE(&init_once) {
         for (i = 0; i < UCP_MAX_LANES; ++i) {
             default_order[i] = i;
         }
+        default_order[UCP_MAX_LANES] = UCP_NULL_LANE;
     }
 
     switch (lane_type) {
@@ -469,6 +470,10 @@ static ucp_lane_index_t ucp_proto_common_find_lanes_internal(
             break;
         }
 
+        if (UCS_BIT(lane) & exclude_map) {
+            continue;
+        }
+
         ucs_assert(lane < UCP_MAX_LANES);
         rsc_index = ep_config_key->lanes[lane].rsc_index;
         if (rsc_index == UCP_NULL_RESOURCE) {
@@ -480,12 +485,12 @@ static ucp_lane_index_t ucp_proto_common_find_lanes_internal(
                  UCT_TL_RESOURCE_DESC_ARG(&context->tl_rscs[rsc_index].tl_rsc));
 
         // /* Check if lane type matches */
-        // if ((lane_type != UCP_LANE_TYPE_LAST) &&
-        //     !(ep_config_key->lanes[lane].lane_types & UCS_BIT(lane_type))) {
-        //     ucs_trace("%s: no %s in name types", lane_desc,
-        //               ucp_lane_type_info[lane_type].short_name);
-        //     continue;
-        // }
+        if ((lane_type != UCP_LANE_TYPE_LAST) &&
+            !(ep_config_key->lanes[lane].lane_types & UCS_BIT(lane_type))) {
+            ucs_trace("%s: no %s in name types", lane_desc,
+                      ucp_lane_type_info[lane_type].short_name);
+            continue;
+        }
 
         /* Check iface capabilities */
         iface_attr = ucp_proto_common_get_iface_attr(params, lane);
