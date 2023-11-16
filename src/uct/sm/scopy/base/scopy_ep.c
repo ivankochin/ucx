@@ -120,6 +120,8 @@ ucs_status_t uct_scopy_ep_get_zcopy(uct_ep_h tl_ep, const uct_iov_t *iov,
                                     size_t iov_cnt, uint64_t remote_addr,
                                     uct_rkey_t rkey, uct_completion_t *comp)
 {
+    // ucs_info("uct_scopy_ep_get_zcopy iov[0].buffer %p iov[0].length %ld iov_cnt %ld",
+    //         iov[0].buffer, iov[0].length, iov_cnt);
     return uct_scopy_ep_tx_init(tl_ep, iov, iov_cnt, remote_addr,
                                 rkey, comp, UCT_SCOPY_TX_GET_ZCOPY);
 }

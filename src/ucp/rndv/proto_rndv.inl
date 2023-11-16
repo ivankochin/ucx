@@ -225,6 +225,7 @@ ucp_proto_rndv_bulk_request_init(ucp_request_t *req,
 {
     if (req->send.rndv.offset == 0) {
         req->send.multi_lane_idx = 0;
+        // req->send.multi_lane_idx = rpriv->mpriv.num_lanes - 1;
     } else {
         ucp_proto_rndv_bulk_request_init_lane_idx(req, rpriv);
     }
@@ -248,6 +249,7 @@ ucp_proto_rndv_bulk_max_payload(ucp_request_t *req,
     if (ucs_likely(total_length < max_frag_sum)) {
         /* Each lane sends less than its maximal fragment size */
         scaled_length = ucp_proto_multi_scaled_length(lpriv->weight_sum,
+        // scaled_length = ucp_proto_multi_scaled_length(lpriv->weight,
                                                       total_length);
 
         ucs_assertv(scaled_length >= total_offset,
@@ -257,6 +259,7 @@ ucp_proto_rndv_bulk_max_payload(ucp_request_t *req,
                     ucp_proto_multi_scaled_length(lpriv->weight_sum, 100));
 
         max_payload = scaled_length - total_offset;
+        // max_payload = scaled_length;
     } else {
         /* Send in round-robin fashion, each lanes sends its maximal size */
         lane_offset = total_offset % max_frag_sum;
@@ -294,10 +297,11 @@ ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
 {
     size_t total_offset = ucp_proto_rndv_request_total_offset(req);
     size_t align_thresh = rpriv->mpriv.align_thresh;
+    size_t max_align    = rpriv->mpriv.max_align;
     size_t align        = lpriv->opt_align;
-    size_t max_payload, align_size;
+    size_t max_payload;
     unsigned buffer_padding;
-    void *buffer;
+    void *buffer, *buffer_end;
 
     ucs_assertv(align != 0, "align=%zu", align);
     ucs_assertv(req->send.state.dt_iter.dt_class == UCP_DATATYPE_CONTIG,
@@ -305,21 +309,24 @@ ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
                 ucp_datatype_class_names[req->send.state.dt_iter.dt_class]);
 
     max_payload = ucp_proto_rndv_bulk_max_payload(req, rpriv, lpriv);
-    if (max_payload < align_thresh) {
-        return max_payload;
-    }
 
     buffer = UCS_PTR_BYTE_OFFSET(req->send.state.dt_iter.type.contig.buffer,
                                  total_offset);
     buffer_padding = ((size_t)buffer) % align;
-    if (buffer_padding == 0) {
-        return max_payload;
+    if ((buffer_padding != 0) && (max_payload >= align_thresh)) {
+        *lane_shift = 0;
+        return align - buffer_padding;
     }
 
-    align_size = align - buffer_padding;
-    *lane_shift = 0;
+    buffer_end     = UCS_PTR_BYTE_OFFSET(buffer, max_payload);
+    buffer_padding = ((size_t)buffer_end) % max_align;
+    if (buffer_padding != 0) {
+        max_payload += max_align - buffer_padding;
+    }
+    // ucs_info("ucp_proto_rndv_bulk_max_payload_align max_align=%ld buffer_end %p buffer_end + padding %p alignment addition %ld",
+    //     max_align, buffer_end, UCS_PTR_BYTE_OFFSET(buffer, max_payload), max_align - buffer_padding);
 
-    return align_size;
+    return ucs_min(lpriv->max_frag, max_payload);
 }
 
 static UCS_F_ALWAYS_INLINE int

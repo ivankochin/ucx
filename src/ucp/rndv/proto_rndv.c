@@ -607,7 +607,7 @@ ucp_proto_rndv_bulk_init(const ucp_proto_multi_init_params_t *init_params,
 
     /* Adjust align split threshold by user configuration */
     mpriv->align_thresh = ucs_max(rndv_align_thresh,
-                                  mpriv->align_thresh + mpriv->min_frag);
+                                  mpriv->max_align + mpriv->min_frag);
 
     /* Update private data size based of ucp_proto_multi_priv_t variable size */
     *priv_size_p = ucs_offsetof(ucp_proto_rndv_bulk_priv_t, mpriv) + mpriv_size;

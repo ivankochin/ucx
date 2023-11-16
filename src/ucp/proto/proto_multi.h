@@ -65,6 +65,7 @@ typedef struct {
     ucp_lane_index_t            num_lanes;    /* Number of lanes to use */
     size_t                      align_thresh; /* Cached value of threshold for
                                                  enabling data split alignment */
+    size_t                      max_align;    /* Maximal optimal alignment */
     ucp_proto_multi_lane_priv_t lanes[0];     /* Array of lanes */
 } ucp_proto_multi_priv_t;
 
