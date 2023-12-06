@@ -248,7 +248,13 @@ size_t test_ucp_tag_xfer::get_msg_size()
 {
     size_t raw_size   = 1148544 / ucs::test_time_multiplier();
     size_t chunk_size = num_lanes() * UCS_SYS_PCI_MAX_PAYLOAD;
-    return ucs_div_round_up(raw_size, chunk_size) * chunk_size;
+    size_t page_size  = ucs_get_page_size();
+
+    EXPECT_TRUE(ucs_is_pow2(chunk_size) && ucs_is_pow2(page_size)) <<
+                "message size should be aligned to both page and chunk sizes";
+    size_t alignment  = ucs_max(chunk_size, page_size);
+
+    return ucs_align_up(raw_size, alignment);
 }
 
 void test_ucp_tag_xfer::test_run_xfer(bool send_contig, bool recv_contig,
