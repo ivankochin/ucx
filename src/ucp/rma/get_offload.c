@@ -110,7 +110,7 @@ ucp_proto_get_offload_bcopy_init(const ucp_proto_init_params_t *init_params)
     }
 
     return ucp_proto_multi_init(&params, init_params->priv,
-                                init_params->priv_size);
+                                init_params->priv_size, NULL, /*stub*/UCP_PROTO_STAGE_SEND);
 }
 
 ucp_proto_t ucp_get_offload_bcopy_proto = {
@@ -203,7 +203,7 @@ ucp_proto_get_offload_zcopy_init(const ucp_proto_init_params_t *init_params)
     }
 
     return ucp_proto_multi_init(&params, init_params->priv,
-                                init_params->priv_size);
+                                init_params->priv_size, NULL, /*stub*/UCP_PROTO_STAGE_SEND);
 }
 
 ucp_proto_t ucp_get_offload_zcopy_proto = {

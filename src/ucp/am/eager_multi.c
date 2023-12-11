@@ -51,7 +51,7 @@ ucp_am_eager_multi_bcopy_proto_init(const ucp_proto_init_params_t *init_params)
     }
 
     return ucp_proto_multi_init(&params, params.super.super.priv,
-                                params.super.super.priv_size);
+                                params.super.super.priv_size, NULL, /*stub*/UCP_PROTO_STAGE_SEND);
 }
 
 static UCS_F_ALWAYS_INLINE void
@@ -212,7 +212,7 @@ ucp_am_eager_multi_zcopy_proto_init(const ucp_proto_init_params_t *init_params)
     }
 
     return ucp_proto_multi_init(&params, params.super.super.priv,
-                                params.super.super.priv_size);
+                                params.super.super.priv_size, NULL, /*stub*/UCP_PROTO_STAGE_SEND);
 }
 
 static UCS_F_ALWAYS_INLINE size_t ucp_am_eager_multi_zcopy_add_payload(

@@ -161,7 +161,7 @@ ucp_proto_request_set_stage(ucp_request_t *req, uint8_t proto_stage)
 {
     const ucp_proto_t *proto = req->send.proto_config->proto;
 
-    ucs_assertv(proto_stage < UCP_PROTO_STAGE_LAST, "stage=%"PRIu8,
+    ucs_assertv(proto_stage < UCP_PROTO_PROGRESS_STAGE_LAST, "stage=%"PRIu8,
                 proto_stage);
     ucs_assert(proto->progress[proto_stage] != NULL);
 
@@ -190,7 +190,7 @@ static void ucp_proto_request_set_proto(ucp_request_t *req,
         ucp_proto_trace_selected(req, msg_length);
     }
 
-    ucp_proto_request_set_stage(req, UCP_PROTO_STAGE_START);
+    ucp_proto_request_set_stage(req, UCP_PROTO_PROGRESS_STAGE_START);
 }
 
 static UCS_F_ALWAYS_INLINE void

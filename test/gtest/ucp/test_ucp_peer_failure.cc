@@ -658,8 +658,8 @@ protected:
     {
         for (int proto_id = 0; proto_id < ucp_protocols_count(); ++proto_id) {
             auto proto = const_cast<ucp_proto_t*>(ucp_protocols[proto_id]);
-            int stage = UCP_PROTO_STAGE_START;
-            for (; stage < UCP_PROTO_STAGE_LAST; ++stage) {
+            int stage = UCP_PROTO_PROGRESS_STAGE_START;
+            for (; stage < UCP_PROTO_PROGRESS_STAGE_LAST; ++stage) {
                 func(proto, stage);
             }
         }
@@ -741,7 +741,7 @@ protected:
                 self->replace_rndv_ops(req->send.ep);
             }
 
-            if (stage == UCP_PROTO_STAGE_START) {
+            if (stage == UCP_PROTO_PROGRESS_STAGE_START) {
                 self->close_peer();
             }
         }

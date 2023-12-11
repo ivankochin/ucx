@@ -22,10 +22,10 @@
 
 enum {
     /* Initial stage for put zcopy is sending the data */
-    UCP_PROTO_RNDV_PUT_ZCOPY_STAGE_SEND = UCP_PROTO_STAGE_START,
+    UCP_PROTO_RNDV_PUT_ZCOPY_STAGE_SEND = UCP_PROTO_PROGRESS_STAGE_START,
 
     /* Initial stage for put memtype is copy the data to the fragment */
-    UCP_PROTO_RNDV_PUT_MTYPE_STAGE_COPY = UCP_PROTO_STAGE_START,
+    UCP_PROTO_RNDV_PUT_MTYPE_STAGE_COPY = UCP_PROTO_PROGRESS_STAGE_START,
 
     /* Flush all lanes to ensure remote delivery */
     UCP_PROTO_RNDV_PUT_STAGE_FLUSH,
@@ -265,7 +265,9 @@ ucp_proto_rndv_put_common_init(const ucp_proto_init_params_t *init_params,
 
     status = ucp_proto_rndv_bulk_init(&params, &rpriv->bulk,
                                       UCP_PROTO_RNDV_PUT_DESC,
-                                      UCP_PROTO_RNDV_ATP_NAME, &bulk_priv_size);
+                                      UCP_PROTO_RNDV_ATP_NAME,
+                                      &bulk_priv_size,
+                                      UCP_PROTO_STAGE_SEND);
     if (status != UCS_OK) {
         return status;
     }

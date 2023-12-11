@@ -43,6 +43,12 @@ void ucp_proto_common_init_base_caps(
 void ucp_proto_perf_range_add_data(const ucp_proto_perf_range_t *range);
 
 
+void
+ucp_proto_perf_range_stages_add_data(ucp_proto_perf_node_t *node,
+                                     const ucp_proto_perf_range_t *stages,
+                                     size_t stages_number);
+
+
 /*
  * Accepts a list of performance functions for a given range and appends the
  * convex or concave envelope of these functions to an output list.
@@ -78,8 +84,9 @@ ucs_status_t
 ucp_proto_init_parallel_stages(const ucp_proto_init_params_t *params,
                                size_t range_start, size_t range_end,
                                size_t frag_size, double bias,
-                               const ucp_proto_perf_range_t **stages,
-                               unsigned num_stages);
+                               const ucp_proto_perf_range_t *stages,
+                               unsigned num_stages,
+                               ucp_proto_perf_node_t *extra_steps_node);
 
 
 void ucp_proto_init_memreg_time(const ucp_proto_common_init_params_t *params,
@@ -100,7 +107,9 @@ ucs_status_t
 ucp_proto_common_init_caps(const ucp_proto_common_init_params_t *params,
                            const ucp_proto_common_tl_perf_t *tl_perf,
                            ucp_proto_perf_node_t *const tl_perf_node,
-                           ucp_md_map_t reg_md_map);
+                           ucp_md_map_t reg_md_map,
+                           ucp_proto_perf_range_stages_t *extra_steps_range,
+                           ucp_proto_stage_t proto_stage);
 
 
 /**

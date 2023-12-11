@@ -56,7 +56,7 @@ ucp_proto_single_init_priv(const ucp_proto_single_init_params_t *params,
     }
 
     status = ucp_proto_common_init_caps(&params->super, &tl_perf, tl_perf_node,
-                                        reg_md_map);
+                                        reg_md_map, NULL, /*stub*/UCP_PROTO_STAGE_SEND);
     ucp_proto_perf_node_deref(&tl_perf_node);
 
     return status;

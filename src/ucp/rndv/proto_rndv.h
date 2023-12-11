@@ -147,7 +147,8 @@ ucs_status_t ucp_proto_rndv_ack_init(const ucp_proto_init_params_t *params,
 ucs_status_t
 ucp_proto_rndv_bulk_init(const ucp_proto_multi_init_params_t *init_params,
                          ucp_proto_rndv_bulk_priv_t *rpriv, const char *name,
-                         const char *ack_name, size_t *priv_size_p);
+                         const char *ack_name, size_t *priv_size_p,
+                         ucp_proto_stage_t self_stage);
 
 
 ucs_status_t ucp_proto_rndv_ats_progress(uct_pending_req_t *uct_req);

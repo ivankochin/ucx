@@ -16,7 +16,7 @@
 #define UCP_PROTO_RNDV_GET_DESC "read from remote"
 
 enum {
-    UCP_PROTO_RNDV_GET_STAGE_FETCH = UCP_PROTO_STAGE_START,
+    UCP_PROTO_RNDV_GET_STAGE_FETCH = UCP_PROTO_PROGRESS_STAGE_START,
     UCP_PROTO_RNDV_GET_STAGE_ATS
 };
 
@@ -69,7 +69,8 @@ ucp_proto_rndv_get_common_init(const ucp_proto_init_params_t *init_params,
     return ucp_proto_rndv_bulk_init(&params, init_params->priv,
                                     UCP_PROTO_RNDV_GET_DESC,
                                     UCP_PROTO_RNDV_ATS_NAME,
-                                    init_params->priv_size);
+                                    init_params->priv_size,
+                                    UCP_PROTO_STAGE_RECV);
 }
 
 static UCS_F_ALWAYS_INLINE void

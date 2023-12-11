@@ -31,7 +31,7 @@ ucp_stream_multi_common_init(const ucp_proto_multi_init_params_t *params)
     }
 
     return ucp_proto_multi_init(params, params->super.super.priv,
-                                params->super.super.priv_size);
+                                params->super.super.priv_size, NULL, /*stub*/UCP_PROTO_STAGE_SEND);
 }
 
 static UCS_F_ALWAYS_INLINE void

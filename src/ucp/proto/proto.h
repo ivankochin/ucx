@@ -65,10 +65,10 @@ typedef struct ucp_proto_select_param ucp_proto_select_param_t;
 /* Protocol stage ID */
 enum {
     /* Initial stage. All protocols start from this stage. */
-    UCP_PROTO_STAGE_START = 0,
+    UCP_PROTO_PROGRESS_STAGE_START = 0,
 
     /* Stage ID must be lower than this value */
-    UCP_PROTO_STAGE_LAST  = 8
+    UCP_PROTO_PROGRESS_STAGE_LAST  = 8
 };
 
 
@@ -124,8 +124,37 @@ typedef enum {
  */
 #define UCP_PROTO_PERF_TYPE_FOREACH(_perf_type) \
     for (_perf_type = UCP_PROTO_PERF_TYPE_FIRST; \
-         _perf_type < UCP_PROTO_PERF_TYPE_LAST; ++(_perf_type))
+         _perf_type < UCP_PROTO_PERF_TYPE_LAST; \
+        _perf_type = (ucp_proto_perf_type_t)((_perf_type) + 1))
+        /* Changed because of error in test_ucp_proto compilation:
+         * no match for ‘operator++’ (operand type is ‘ucp_proto_perf_type_t’)
+         * Possible solution: move all funcs that invokes PERF_TYPE_FOREACH to separate proto.inl file
+         */
 
+
+/* Defines the types of possible parallel stages for each protocol */
+typedef enum {
+    UCP_PROTO_STAGE_FIRST,
+    /* Time consumed on sender CPU */
+    UCP_PROTO_STAGE_SEND = UCP_PROTO_STAGE_FIRST,
+    /* Time consumed on network */
+    UCP_PROTO_STAGE_XFER,
+    /* Time consumed on receiver CPU */
+    UCP_PROTO_STAGE_RECV,
+    UCP_PROTO_STAGE_LAST
+} ucp_proto_stage_t;
+
+
+/* TODO: Consider unification with UCP_PROTO_PERF_TYPE_FOREACH to UCP_PROTO_FOREACH(it, PERF_TYPE or STAGE)*/
+/*
+ * Iterate over protocol stages.
+ *
+ * @param _perf_type  protocol stage iterator variable.
+ */
+#define UCP_PROTO_STAGE_FOREACH(_stage) \
+    for (_stage = UCP_PROTO_STAGE_FIRST; \
+         _stage < UCP_PROTO_STAGE_LAST; \
+        _stage = (ucp_proto_stage_t)((_stage) + 1))
 
 /*
  * Performance estimation for a range of message sizes.
@@ -142,6 +171,17 @@ typedef struct {
     /* Performance data tree */
     ucp_proto_perf_node_t *node;
 } ucp_proto_perf_range_t;
+
+/*
+ * Performance estimation for a range of message sizes.
+ */
+typedef struct {
+    /* TODO: Add comment */
+    ucp_proto_perf_range_t stages[UCP_PROTO_STAGE_LAST];
+
+    /* Performance data tree */
+    ucp_proto_perf_node_t  *node;
+} ucp_proto_perf_range_stages_t;
 
 
 /**
@@ -287,7 +327,7 @@ struct ucp_proto {
     /* Initial UCT progress function, can be changed during the protocol
      * request lifetime to implement different stages
      */
-    uct_pending_callback_t   progress[UCP_PROTO_STAGE_LAST];
+    uct_pending_callback_t   progress[UCP_PROTO_PROGRESS_STAGE_LAST];
 
     /*
      * Abort a request (which is currently not scheduled to a pending queue).

@@ -205,4 +205,47 @@ ucp_proto_select_param_perf_type(const ucp_proto_select_param_t *select_param)
     }
 }
 
+static UCS_F_ALWAYS_INLINE ucp_proto_stage_t
+ucp_proto_get_peer_stage(ucp_proto_stage_t current_stage) {
+    ucs_assert(current_stage != UCP_PROTO_STAGE_XFER);
+    if (current_stage == UCP_PROTO_STAGE_SEND) {
+        return UCP_PROTO_STAGE_RECV;
+    }
+    return UCP_PROTO_STAGE_SEND;
+}
+
+static UCS_F_ALWAYS_INLINE void
+ucp_proto_stages_init(ucp_proto_perf_range_t *parallel_stages) {
+    ucp_proto_stage_t stage;
+
+    UCP_PROTO_STAGE_FOREACH(stage) {
+        ucp_proto_perf_set(parallel_stages[stage].perf,
+                           ucs_linear_func_make(0, 0));
+    }
+}
+
+static UCS_F_ALWAYS_INLINE void
+ucp_proto_perf_add_inplace(ucs_linear_func_t *proto_perf,
+                           const ucs_linear_func_t *step_perf)
+{
+    ucp_proto_perf_type_t perf_type;
+
+    UCP_PROTO_PERF_TYPE_FOREACH(perf_type) {
+        ucs_linear_func_add_inplace(&proto_perf[perf_type],
+                                    step_perf[perf_type]);
+    }
+}
+
+static UCS_F_ALWAYS_INLINE void
+ucp_proto_stages_add_stage(ucp_proto_perf_range_t *proto_stages,
+                           const ucp_proto_perf_range_t *step_stages)
+{
+    ucp_proto_perf_add_inplace(proto_stages[UCP_PROTO_STAGE_SEND].perf,
+                               step_stages[UCP_PROTO_STAGE_SEND].perf);
+    ucp_proto_perf_add_inplace(proto_stages[UCP_PROTO_STAGE_XFER].perf,
+                               step_stages[UCP_PROTO_STAGE_XFER].perf);
+    ucp_proto_perf_add_inplace(proto_stages[UCP_PROTO_STAGE_RECV].perf,
+                               step_stages[UCP_PROTO_STAGE_RECV].perf);
+}
+
 #endif

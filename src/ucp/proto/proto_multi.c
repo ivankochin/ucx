@@ -20,7 +20,9 @@
 
 ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
                                   ucp_proto_multi_priv_t *mpriv,
-                                  size_t *priv_size_p)
+                                  size_t *priv_size_p,
+                                  ucp_proto_perf_range_stages_t *extra_steps_range,
+                                  ucp_proto_stage_t proto_stage)
 {
     ucp_context_h context         = params->super.super.worker->context;
     const double max_bw_ratio     = context->config.ext.multi_lane_max_ratio;
@@ -231,7 +233,7 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
     }
 
     status = ucp_proto_common_init_caps(&params->super, &perf, perf_node,
-                                        reg_md_map);
+                                        reg_md_map, extra_steps_range, proto_stage);
 
     /* Deref unused nodes */
     for (i = 0; i < num_lanes; ++i) {

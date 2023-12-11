@@ -47,7 +47,7 @@ ucp_proto_rndv_am_init_common(ucp_proto_multi_init_params_t *params)
     params->opt_align_offs   = UCP_PROTO_COMMON_OFFSET_INVALID;
 
     return ucp_proto_multi_init(params, params->super.super.priv,
-                                params->super.super.priv_size);
+                                params->super.super.priv_size, NULL, /*stub*/UCP_PROTO_STAGE_SEND);
 }
 
 static UCS_F_ALWAYS_INLINE void
