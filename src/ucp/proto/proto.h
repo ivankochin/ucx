@@ -108,11 +108,6 @@ typedef enum {
     /* Time to complete this operation after all previous ones complete. */
     UCP_PROTO_PERF_TYPE_MULTI,
 
-    /* CPU time the operation consumes (it would be less than or equal to the
-     * SINGLE and MULTI times).
-     */
-    UCP_PROTO_PERF_TYPE_CPU,
-
     UCP_PROTO_PERF_TYPE_LAST
 } ucp_proto_perf_type_t;
 
