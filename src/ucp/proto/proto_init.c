@@ -496,13 +496,15 @@ static ucs_status_t
 ucp_proto_common_init_send_perf(const ucp_proto_common_init_params_t *params,
                                 const ucp_proto_common_tl_perf_t *tl_perf,
                                 ucp_md_map_t reg_md_map, int empty_msg,
-                                ucp_proto_perf_range_t *send_perf)
+                                ucp_proto_perf_range_t *send_perf,
+                                ucp_proto_stage_t stage)
 {
+    const char *node_name = ucp_proto_stage_names[stage];
     ucp_proto_perf_node_t *child_perf_node;
     ucs_linear_func_t send_overhead;
     ucs_status_t status;
 
-    send_perf->node = ucp_proto_perf_node_new_data("send-ovrh", "");
+    send_perf->node = ucp_proto_perf_node_new_data(node_name, "");
 
     /* Remote access implies zero copy on receiver */
     if (params->flags & UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS) {
@@ -592,16 +594,18 @@ static ucs_status_t
 ucp_proto_common_init_recv_perf(const ucp_proto_common_init_params_t *params,
                                 const ucp_proto_common_tl_perf_t *tl_perf,
                                 ucp_md_map_t reg_md_map, int empty_msg,
-                                ucp_proto_perf_range_t *recv_perf)
+                                ucp_proto_perf_range_t *recv_perf,
+                                ucp_proto_stage_t stage)
 {
     const ucp_proto_select_param_t *select_param = params->super.select_param;
+    const char *node_name                        = ucp_proto_stage_names[stage];
     ucp_proto_perf_node_t *child_perf_node;
     ucs_linear_func_t recv_overhead;
     ucs_memory_type_t recv_mem_type;
     uint32_t op_attr_mask;
     ucs_status_t status;
 
-    recv_perf->node = ucp_proto_perf_node_new_data("recv-ovrh", "");
+    recv_perf->node = ucp_proto_perf_node_new_data(node_name, "");
 
     op_attr_mask = ucp_proto_select_op_attr_unpack(select_param->op_attr);
 
@@ -677,7 +681,8 @@ ucp_proto_init_single_frag_ranges(const ucp_proto_common_init_params_t *params,
     /* Sender overhead */
     status = ucp_proto_common_init_send_perf(params, tl_perf, reg_md_map,
                                              empty_msg,
-                                             &proto_range.stages[proto_stage]);
+                                             &proto_range.stages[proto_stage],
+                                             proto_stage);
     if (status != UCS_OK) {
         goto out_deref_xfer_perf;
     }
@@ -685,7 +690,8 @@ ucp_proto_init_single_frag_ranges(const ucp_proto_common_init_params_t *params,
     /* Receiver overhead */
     status = ucp_proto_common_init_recv_perf(params, tl_perf, reg_md_map,
                                              empty_msg,
-                                             &proto_range.stages[peer_stage]);
+                                             &proto_range.stages[peer_stage],
+                                             peer_stage);
     if (status != UCS_OK) {
         goto out_deref_proto_stage;
     }

@@ -87,6 +87,11 @@ const char *ucp_proto_perf_type_names[] = {
     [UCP_PROTO_PERF_TYPE_MULTI]  = "multi",
 };
 
+const char *ucp_proto_stage_names[] = {
+    [UCP_PROTO_STAGE_SEND]  = "send",
+    [UCP_PROTO_STAGE_RECV]  = "recv",
+};
+
 const char *ucp_operation_names[] = {
     [UCP_OP_ID_TAG_SEND]       = "tag_send",
     [UCP_OP_ID_TAG_SEND_SYNC]  = "tag_send_sync",

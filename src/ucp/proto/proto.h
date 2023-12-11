@@ -367,6 +367,9 @@ extern const char *ucp_operation_descs[];
 extern const char *ucp_proto_perf_type_names[];
 
 
+/* Performance stages names */
+extern const char *ucp_proto_stage_names[];
+
 /* Get number of globally registered protocols */
 unsigned ucp_protocols_count(void);
 
