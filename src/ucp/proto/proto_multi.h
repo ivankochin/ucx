@@ -132,6 +132,13 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
                                   ucp_proto_stage_t proto_stage);
 
 
+ucs_status_t ucp_proto_multi_init_priv(const ucp_proto_multi_init_params_t *params,
+                                       ucp_proto_multi_priv_t *mpriv,
+                                       size_t *priv_size_p,
+                                       ucp_proto_perf_node_t *perf_node,
+                                       ucp_proto_common_tl_perf_t *perf);
+
+
 void ucp_proto_multi_query_config(const ucp_proto_query_params_t *params,
                                   ucp_proto_query_attr_t *attr);
 
