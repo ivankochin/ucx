@@ -84,34 +84,14 @@ enum {
 };
 
 
-/*
- * Some protocols can be pipelined, so the time they consume when multiple
- * such operations are issued is less than their cumulative time. Therefore we
- * define two metrics: "single" operation time and "multi" operation time.
- *
- * -------time---------->
- *
- *        +-------------------------+
- * op1:   |   "single" time         |
- *        +---------------+---------+---------------+
- *                op2:    | overlap | "multi" time  |
- *                        +---------+-----+---------+---------------+
- *                                op3:    | overlap | "multi" time  |
- *                                        +---------+---------------+
- */
 typedef enum {
     UCP_PROTO_PERF_TYPE_FIRST,
 
-    /* Time to complete this operation assuming it's the only one. */
-    UCP_PROTO_PERF_TYPE_SINGLE = UCP_PROTO_PERF_TYPE_FIRST,
-
-    /* Time to complete this operation after all previous ones complete. */
-    UCP_PROTO_PERF_TYPE_MULTI,
-
-    /* CPU time the operation consumes (it would be less than or equal to the
-     * SINGLE and MULTI times).
-     */
-    UCP_PROTO_PERF_TYPE_CPU,
+    UCP_PROTO_PERF_TYPE_LOCAL_CPU = UCP_PROTO_PERF_TYPE_FIRST,
+    UCP_PROTO_PERF_TYPE_LOCAL_NETWORK,
+    UCP_PROTO_PERF_TYPE_LATENCY_NETWORK,
+    UCP_PROTO_PERF_TYPE_REMOTE_NETWORK,
+    UCP_PROTO_PERF_TYPE_REMOTE_CPU,
 
     UCP_PROTO_PERF_TYPE_LAST
 } ucp_proto_perf_type_t;
@@ -131,17 +111,24 @@ typedef enum {
  * Performance estimation for a range of message sizes.
  */
 typedef struct {
-    /* Maximal payload size for this range */
-    size_t                max_length;
 
     /* Estimated time in seconds, as a function of message size in bytes, to
      * complete the operation. See @ref ucp_proto_perf_type_t for details
      */
-    ucs_linear_func_t     perf[UCP_PROTO_PERF_TYPE_LAST];
+    ucs_linear_piecewise_func_t     perf[UCP_PROTO_PERF_TYPE_LAST];
 
     /* Performance data tree */
     ucp_proto_perf_node_t *node;
 } ucp_proto_perf_range_t;
+
+
+typedef struct {
+    size_t                  min_length;   /* Minimal message size */
+    unsigned                num_ranges;   /* Number of entries in 'ranges' */
+
+    /* Performance estimation function for different message sizes */
+    ucp_proto_perf_range_t  ranges;
+} ucp_proto_perf_caps_t;
 
 
 /**
@@ -150,12 +137,8 @@ typedef struct {
 typedef struct {
     size_t                  cfg_thresh;   /* Configured protocol threshold */
     unsigned                cfg_priority; /* Priority of configuration */
-    size_t                  min_length;   /* Minimal message size */
-    unsigned                num_ranges;   /* Number of entries in 'ranges' */
-
-    /* Performance estimation function for different message sizes */
-    ucp_proto_perf_range_t  ranges[UCP_PROTO_MAX_PERF_RANGES];
-
+    ucp_proto_perf_caps_t   perf;         /* Estimated performance for each
+                                             supported message sizes */
 } ucp_proto_caps_t;
 
 
@@ -352,5 +335,24 @@ void ucp_proto_perf_copy(ucs_linear_func_t dest[UCP_PROTO_PERF_TYPE_LAST],
 
 void ucp_proto_perf_add(ucs_linear_func_t perf[UCP_PROTO_PERF_TYPE_LAST],
                         ucs_linear_func_t func);
+
+
+ucp_proto_perf_caps_t ucp_proto_perf_caps_merge(ucp_proto_perf_caps_t caps1,
+                                                ucp_proto_perf_caps_t caps2);
+
+
+void ucp_proto_perf_caps_merge_inplace(ucp_proto_perf_caps_t *dest,
+                                       ucp_proto_perf_caps_t src);
+
+
+void ucp_proto_perf_caps_add_func(ucp_proto_perf_caps_t *caps,
+                                  ucs_linear_func_t func,
+                                  ucp_proto_perf_type_t perf_type);
+
+
+void ucp_proto_perf_caps_add_range(ucp_proto_perf_caps_t *caps,
+                                   ucp_proto_perf_range_t range);
+
+// Move to UCS. Represent as piecewise function.
 
 #endif
