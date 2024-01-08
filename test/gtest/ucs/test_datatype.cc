@@ -1364,15 +1364,15 @@ UCS_MT_TEST_F(test_datatype_ptr_map_safe, safe_put, num_threads)
 // TODO: ADD VERBOSE OUTPUT ON ASSERTS FAILURES
 class test_piecewise_func : public test_datatype {
 protected:
-    void compare_point_value(const ucs_piecewise_func_t& piecewise_func,
+    void compare_point_value(ucs_piecewise_func_t& piecewise_func,
                              const ucs_linear_func_t& linear_func, size_t point)
     {
-        ASSERT_EQ(ucs_piecewise_func_apply(piecewise_func, point), 
+        ASSERT_EQ(ucs_piecewise_func_apply(&piecewise_func, point),
                   ucs_linear_func_apply(linear_func, point)) <<
                   "point is " << point;
     }
 
-    size_t get_num_ranges(const ucs_piecewise_func_t& func) {
+    size_t get_num_segments(const ucs_piecewise_func_t& func) {
         size_t num_ranges = 0;
 
         for (auto seg = &func.segments[0]; seg != nullptr; seg = seg->next) {
@@ -1398,12 +1398,12 @@ protected:
                               const ucs_linear_func_t& segment_func)
     {
         check_last_segment_end(func);
-        ASSERT_EQ(get_num_ranges(func), 1);
+        ASSERT_EQ(get_num_segments(func), 1);
         ASSERT_TRUE(ucs_linear_func_is_equal(func.segments[0].func,
                                              segment_func, 0));
     }
 
-    void check_funcs_sum(const ucs_piecewise_func_t& result,
+    void check_funcs_sum(ucs_piecewise_func_t& result,
                          std::vector<ucs_piecewise_func_t> funcs)
     {
         size_t seg_start = 0;
@@ -1423,20 +1423,20 @@ protected:
                 seg       = seg->next;
             }
 
-            num_segments += get_num_ranges(func);
+            num_segments += get_num_segments(func);
         }
 
         ASSERT_LE(num_segments, UCX_PIECEWISE_FUNC_MAX_SEGMENTS) <<
-            "Summarized functions contains to many segments, result will cross " <<
-            UCX_PIECEWISE_FUNC_MAX_SEGMENTS;
+            "Summarized functions contains too many segments, "
+            "result will cross " << UCX_PIECEWISE_FUNC_MAX_SEGMENTS;
 
         for (size_t point: points) {
             double expected = 0;
-            for (const auto& func: funcs) {
-                expected += ucs_piecewise_func_apply(func, point);
+            for (auto& func: funcs) {
+                expected += ucs_piecewise_func_apply(&func, point);
             }
 
-            ASSERT_EQ(ucs_piecewise_func_apply(result, point), expected); // ADD VERBOSE OUTPUT
+            ASSERT_EQ(ucs_piecewise_func_apply(&result, point), expected); // ADD VERBOSE OUTPUT
         }
     }
 
@@ -1485,36 +1485,49 @@ UCS_TEST_F(test_piecewise_func, init) {
 }
 
 UCS_TEST_F(test_piecewise_func, segment_add) {
-    ucs_piecewise_func_t func              = ucs_piecewise_func_make(1, 1);
+    std::vector<std::pair<size_t, size_t>> segments_to_test = {
+        {0, 0}, {0, 5}, {10, 20}, {20, 20}, {20, SIZE_MAX}, {SIZE_MAX, SIZE_MAX}
+    };
     ucs_linear_func_t initial_segment_func = ucs_linear_func_make(1, 1);
     ucs_linear_func_t new_segment_func     = ucs_linear_func_make(2, 2);
     ucs_linear_func_t result_func          = ucs_linear_func_add(new_segment_func,
                                                                  initial_segment_func);
-    size_t new_segment_start               = 10;
-    size_t new_segment_end                 = 20;
 
-    ucs_piecewise_func_add_segment(&func, new_segment_start, new_segment_end,
-                                   new_segment_func);
+    for (const auto& seg: segments_to_test) {
+        UCS_TEST_MESSAGE << "Test segment [" << seg.first << ", " <<
+                            seg.second << "]";
 
-    ASSERT_EQ(get_num_ranges(func), 3);
+        ucs_piecewise_func_t func = ucs_piecewise_func_make(1, 1);
+        ucs_piecewise_func_add_segment(&func, seg.first, seg.second,
+                                       new_segment_func);
 
-    std::vector<size_t> new_segment_points = {
-        new_segment_end,                          /* End should be included */
-        (new_segment_end + new_segment_start) / 2 /* Test middle of the segment */
-    };
+        /* Check number of the segments in the result function */
+        size_t expected_num_segments = 3;
+        if ((seg.first == 0) || (seg.second == SIZE_MAX)) {
+            expected_num_segments = 2;
+        }
+        ASSERT_EQ(get_num_segments(func), expected_num_segments);
 
-    std::vector<size_t> initial_segment_points = {
-        new_segment_start,     /* Start should be excluded from new segment */
-        new_segment_start / 2, /* Value before new segment */
-        new_segment_end * 2,   /* Value after new segment */
-    };
+        /* Check points which should be affected by added segment */
+        std::vector<size_t> new_segment_points = {
+            seg.first, seg.second, seg.first + (seg.second - seg.first) / 2
+        };
+        for (auto point: new_segment_points) {
+            compare_point_value(func, result_func, point);
+        }
 
-    for (auto point: new_segment_points) {
-        compare_point_value(func, result_func, point);
-    }
+        /* Check points which should not be affected by added segment */
+        std::vector<size_t> initial_segment_points;
+        if (seg.first > 0) {
+            initial_segment_points.emplace_back(seg.first / 2);
+        }
+        if (seg.second < SIZE_MAX) {
+           initial_segment_points.emplace_back(seg.second + 1);
+        }
 
-    for (auto point: initial_segment_points) {
-        compare_point_value(func, initial_segment_func, point);
+        for (auto point: initial_segment_points) {
+            compare_point_value(func, initial_segment_func, point);
+        }
     }
 }
 
@@ -1555,15 +1568,18 @@ UCS_TEST_F(test_piecewise_func, add_multi_segment_funcs) {
 UCS_TEST_F(test_piecewise_func, add_inplace_random) {
     constexpr size_t max_funcs           = 8;
     constexpr size_t max_custom_segments = 8;
+    constexpr size_t test_num            = 100;
 
-    for (int num_funcs = 0; num_funcs < max_funcs; ++num_funcs) {
-        auto funcs = make_random_funcs_set(num_funcs, max_custom_segments);
+    for (size_t test_it = 0; test_it < test_num; ++test_it) {
+        for (size_t num_funcs = 0; num_funcs < max_funcs; ++num_funcs) {
+            auto funcs = make_random_funcs_set(num_funcs, max_custom_segments);
 
-        ucs_piecewise_func_t result = UCS_PIECEWISE_FUNC_ZERO;
-        for (auto& func: funcs) {
-            ucs_piecewise_func_add_inplace(&result, &func);
+            ucs_piecewise_func_t result = UCS_PIECEWISE_FUNC_ZERO;
+            for (auto& func: funcs) {
+                ucs_piecewise_func_add_inplace(&result, &func);
+            }
+
+            check_funcs_sum(result, funcs);
         }
-
-        check_funcs_sum(result, funcs);
     }
 }
