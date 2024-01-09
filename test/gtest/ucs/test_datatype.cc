@@ -1379,13 +1379,17 @@ protected:
 
     void print_piecewise_func(const ucs_piecewise_func_t& func) {
         size_t start = 0;
+        auto *seg = &func.segments[0];
+        auto next_idx = seg->next_idx;
 
         UCS_TEST_MESSAGE << "piecewise func:";
-        for (const auto *seg = func.segments; seg != nullptr; seg = seg->next) {
+        do {
             segment test_segment = {start, seg->end, seg->func};
             UCS_TEST_MESSAGE << "\t" << get_segment_string(test_segment);
             start = seg->end + 1;
-        }
+            next_idx = seg->next_idx;
+            seg = &func.segments[seg->next_idx];
+        } while (next_idx != 0);
     }
 
     void compare_point_value(ucs_piecewise_func_t& piecewise_func,
@@ -1398,10 +1402,14 @@ protected:
 
     size_t get_num_segments(const ucs_piecewise_func_t& func) {
         size_t num_ranges = 0;
+        auto *seg = &func.segments[0];
+        auto next_idx = seg->next_idx;
 
-        for (auto seg = &func.segments[0]; seg != nullptr; seg = seg->next) {
+        do {
             ++num_ranges;
-        }
+            next_idx = seg->next_idx;
+            seg = &func.segments[seg->next_idx];
+        } while (next_idx != 0);
 
         return num_ranges;
     }
@@ -1409,11 +1417,9 @@ protected:
     /* Check that piecewise function is valid for all values up to SIZE_MAX */
     void check_last_segment_end(const ucs_piecewise_func_t& func)
     {
-        auto seg = &func.segments[0];
+        auto *seg = &func.segments[0];
 
-        while (seg->next != nullptr) {
-            seg = seg->next;
-        }
+        for (; seg->next_idx != 0; seg = &func.segments[seg->next_idx]) {}
 
         ASSERT_EQ(seg->end, SIZE_MAX);
     }
@@ -1435,8 +1441,10 @@ protected:
         std::set<size_t> points;
 
         for (const ucs_piecewise_func_t& func: funcs) {
-            auto seg = &func.segments[0];
-            while (seg->next != nullptr) {
+            auto *seg = &func.segments[0];
+            auto next_idx = seg->next_idx;
+
+            do {
                 /* Test start, end and middle of the each segment */
                 points.insert(seg_start);
                 points.insert(seg->end);
@@ -1444,9 +1452,9 @@ protected:
 
                 /* Next range start is current range end */
                 seg_start = seg->end;
-                seg       = seg->next;
-            }
-
+                next_idx = seg->next_idx;
+                seg = &func.segments[seg->next_idx];
+            } while (next_idx != 0);
             num_segments += get_num_segments(func);
         }
 
@@ -1467,7 +1475,7 @@ protected:
                     print_piecewise_func(func);
                 }
             }
-            ASSERT_EQ(actual, expected);
+            ASSERT_EQ(actual, expected) << "point is " << point;
         }
     }
 
