@@ -1369,7 +1369,8 @@ protected:
         ucs_linear_func_t func;
     };
 
-    std::string get_segment_string(const segment& seg) {
+    std::string get_segment_string(const segment& seg)
+    {
         std::stringstream ss;
         ss << "segment [" << seg.start << ", " << seg.end << "] : ";
         ss << "func f(x) = " << seg.func.c << " + x*" << seg.func.m;
@@ -1379,17 +1380,14 @@ protected:
 
     void print_piecewise_func(const ucs_piecewise_func_t& func) {
         size_t start = 0;
-        auto *seg = &func.segments[0];
-        auto next_idx = seg->next_idx;
+        const ucs_piecewise_segment_t *seg;
 
         UCS_TEST_MESSAGE << "piecewise func:";
-        do {
+        UCS_PIECEWISE_FUNC_FOR_EACH_SEGMENT(&func, seg) {
             segment test_segment = {start, seg->end, seg->func};
             UCS_TEST_MESSAGE << "\t" << get_segment_string(test_segment);
             start = seg->end + 1;
-            next_idx = seg->next_idx;
-            seg = &func.segments[seg->next_idx];
-        } while (next_idx != 0);
+        }
     }
 
     void compare_point_value(ucs_piecewise_func_t& piecewise_func,
@@ -1402,14 +1400,11 @@ protected:
 
     size_t get_num_segments(const ucs_piecewise_func_t& func) {
         size_t num_ranges = 0;
-        auto *seg = &func.segments[0];
-        auto next_idx = seg->next_idx;
+        const ucs_piecewise_segment_t *seg;
 
-        do {
+        UCS_PIECEWISE_FUNC_FOR_EACH_SEGMENT(&func, seg) {
             ++num_ranges;
-            next_idx = seg->next_idx;
-            seg = &func.segments[seg->next_idx];
-        } while (next_idx != 0);
+        }
 
         return num_ranges;
     }
@@ -1417,9 +1412,10 @@ protected:
     /* Check that piecewise function is valid for all values up to SIZE_MAX */
     void check_last_segment_end(const ucs_piecewise_func_t& func)
     {
-        auto *seg = &func.segments[0];
-
-        for (; seg->next_idx != 0; seg = &func.segments[seg->next_idx]) {}
+        const ucs_piecewise_segment_t *seg = func.segments;
+        while (seg->next_idx != UCS_PIECEWISE_FUNC_INVALID_IDX) {
+            seg = &func.segments[seg->next_idx];
+        }
 
         ASSERT_EQ(seg->end, SIZE_MAX);
     }
@@ -1439,12 +1435,10 @@ protected:
         size_t seg_start = 0;
         size_t num_segments = 0;
         std::set<size_t> points;
+        const ucs_piecewise_segment_t *seg;
 
         for (const ucs_piecewise_func_t& func: funcs) {
-            auto *seg = &func.segments[0];
-            auto next_idx = seg->next_idx;
-
-            do {
+            UCS_PIECEWISE_FUNC_FOR_EACH_SEGMENT(&func, seg) {
                 /* Test start, end and middle of the each segment */
                 points.insert(seg_start);
                 points.insert(seg->end);
@@ -1452,15 +1446,13 @@ protected:
 
                 /* Next range start is current range end */
                 seg_start = seg->end;
-                next_idx = seg->next_idx;
-                seg = &func.segments[seg->next_idx];
-            } while (next_idx != 0);
+            }
             num_segments += get_num_segments(func);
         }
 
-        ASSERT_LE(num_segments, UCX_PIECEWISE_FUNC_MAX_SEGMENTS) <<
+        ASSERT_LE(num_segments, UCS_PIECEWISE_FUNC_MAX_SEGMENTS) <<
             "Summarized functions contains too many segments, "
-            "result will cross " << UCX_PIECEWISE_FUNC_MAX_SEGMENTS;
+            "result will cross " << UCS_PIECEWISE_FUNC_MAX_SEGMENTS;
 
         for (size_t point: points) {
             double expected = 0;

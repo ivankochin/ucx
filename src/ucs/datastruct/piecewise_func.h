@@ -13,10 +13,18 @@
 #include <stddef.h>
 #include <limits.h>
 
-#define UCX_PIECEWISE_FUNC_MAX_SEGMENTS 128
+#define UCS_PIECEWISE_FUNC_MAX_SEGMENTS 128
+#define UCS_PIECEWISE_FUNC_INVALID_IDX UCS_PIECEWISE_FUNC_MAX_SEGMENTS
+#define UCS_PIECEWISE_FUNC_INVALID_SEGMENT(_func) \
+    &(_func)->segments[UCS_PIECEWISE_FUNC_INVALID_IDX]
 
 /* The zero function */
 #define UCS_PIECEWISE_FUNC_ZERO ucs_piecewise_func_make(0, 0)
+
+#define UCS_PIECEWISE_FUNC_FOR_EACH_SEGMENT(_func, _seg) \
+    for (_seg = &(_func)->segments[0]; \
+         _seg != UCS_PIECEWISE_FUNC_INVALID_SEGMENT(_func); \
+         _seg = &(_func)->segments[_seg->next_idx])
 
 
 struct ucs_piecewise_segment;
@@ -28,7 +36,7 @@ typedef struct ucs_piecewise_segment ucs_piecewise_segment_t;
 struct ucs_piecewise_segment {
     ucs_linear_func_t       func;
     size_t                  end;
-    int16_t                next_idx;
+    uint16_t                next_idx;
 };
 
 
@@ -36,8 +44,8 @@ struct ucs_piecewise_segment {
  * A piecewise function consisting of several segments.
  */
 typedef struct {
-    ucs_piecewise_segment_t segments[UCX_PIECEWISE_FUNC_MAX_SEGMENTS];
-    int16_t                free_idx;
+    ucs_piecewise_segment_t segments[UCS_PIECEWISE_FUNC_MAX_SEGMENTS];
+    uint16_t                free_idx;
 } ucs_piecewise_func_t;
 
 
@@ -58,14 +66,14 @@ ucs_piecewise_func_make(double c, double m)
 
     result.segments[0].func     = ucs_linear_func_make(c, m);
     result.segments[0].end      = SIZE_MAX;
-    result.segments[0].next_idx = 0;
+    result.segments[0].next_idx = UCS_PIECEWISE_FUNC_INVALID_IDX;
 
     /* Fill the free list structure */
     result.free_idx = 1;
-    for (idx = 1; idx < UCX_PIECEWISE_FUNC_MAX_SEGMENTS - 1; ++idx) {
+    for (idx = 1; idx < UCS_PIECEWISE_FUNC_MAX_SEGMENTS - 1; ++idx) {
         result.segments[idx].next_idx = idx + 1;
     }
-    result.segments[UCX_PIECEWISE_FUNC_MAX_SEGMENTS - 1].next_idx = 0;
+    result.segments[idx].next_idx = UCS_PIECEWISE_FUNC_INVALID_IDX;
 
     return result;
 }
@@ -75,7 +83,9 @@ _ucs_piecewise_func_assert_range(ucs_piecewise_func_t *func)
 {
 #if ENABLE_ASSERT
     ucs_piecewise_segment_t *seg = func->segments;
-    for (; seg->next_idx != 0; seg = &func->segments[seg->next_idx]) {}
+    while (seg->next_idx != UCS_PIECEWISE_FUNC_INVALID_IDX) {
+        seg = &func->segments[seg->next_idx];
+    }
     ucs_assertv(seg->end == SIZE_MAX,
                 "piecewise function do not cover SIZE_MAX, end is %ld",
                 seg->end);
@@ -109,9 +119,15 @@ ucs_piecewise_func_apply(ucs_piecewise_func_t *func, size_t x)
 static UCS_F_ALWAYS_INLINE ucs_piecewise_segment_t*
 _ucs_piecewise_func_acquire_free_segment(ucs_piecewise_func_t *func)
 {
-    ucs_piecewise_segment_t *free_seg = &func->segments[func->free_idx];
-    func->free_idx                    = free_seg->next_idx;
-    free_seg->next_idx                = 0;
+    ucs_piecewise_segment_t *free_seg;
+
+    ucs_assertv_always(func->free_idx != UCS_PIECEWISE_FUNC_INVALID_IDX,
+                       "All the piecewise function free segments were acquired");
+
+    free_seg           = &func->segments[func->free_idx];
+    func->free_idx     = free_seg->next_idx;
+    free_seg->next_idx = 0;
+
     return free_seg;
 }
 
@@ -216,20 +232,16 @@ static inline void
 ucs_piecewise_func_add_inplace(ucs_piecewise_func_t *func1,
                                ucs_piecewise_func_t *func2)
 {
-    ucs_piecewise_segment_t *seg = &func2->segments[0];
-    size_t seg_start             = 0;
-    uint16_t next_idx;
+    size_t seg_start = 0;
+    ucs_piecewise_segment_t *seg;
 
     _ucs_piecewise_func_assert_range(func1);
     _ucs_piecewise_func_assert_range(func2);
 
-    do {
+    UCS_PIECEWISE_FUNC_FOR_EACH_SEGMENT(func2, seg) {
         ucs_piecewise_func_add_segment(func1, seg_start, seg->end, seg->func);
         seg_start = seg->end + 1;
-
-        next_idx = seg->next_idx;
-        seg      = &func2->segments[seg->next_idx];
-    } while (next_idx != 0);
+    }
 }
 
 #endif
