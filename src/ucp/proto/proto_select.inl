@@ -205,4 +205,23 @@ ucp_proto_select_param_perf_type(const ucp_proto_select_param_t *select_param)
     }
 }
 
+static UCS_F_ALWAYS_INLINE int
+ucp_proto_select_is_multi(const ucp_proto_select_param_t *select_param)
+{
+    if (ucp_proto_select_op_attr_unpack(select_param->op_attr) &
+        UCP_OP_ATTR_FLAG_MULTI_SEND) {
+        return 1;
+    }
+    return 0;
+}
+
+static UCS_F_ALWAYS_INLINE const char *
+ucp_proto_select_node_name(const ucp_proto_select_param_t *select_param)
+{
+    if (ucp_proto_select_is_multi(select_param)) {
+        return "best multiple operations";
+    }
+    return "best single operation";
+}
+
 #endif

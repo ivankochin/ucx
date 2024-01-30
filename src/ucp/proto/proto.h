@@ -10,8 +10,9 @@
 #include "lane_type.h"
 
 #include <ucp/core/ucp_types.h>
-#include <ucs/datastruct/linear_func.h>
+#include <ucs/datastruct/linear_func.h> // Does it still used after all the changes???
 #include <ucs/datastruct/string_buffer.h>
+#include <ucs/datastruct/piecewise_func.h>
 
 
 /* Maximal number of lanes per protocol */
@@ -101,18 +102,10 @@ enum {
  */
 typedef enum {
     UCP_PROTO_PERF_TYPE_FIRST,
-
-    /* Time to complete this operation assuming it's the only one. */
-    UCP_PROTO_PERF_TYPE_SINGLE = UCP_PROTO_PERF_TYPE_FIRST,
-
-    /* Time to complete this operation after all previous ones complete. */
-    UCP_PROTO_PERF_TYPE_MULTI,
-
-    /* CPU time the operation consumes (it would be less than or equal to the
-     * SINGLE and MULTI times).
-     */
-    UCP_PROTO_PERF_TYPE_CPU,
-
+    UCP_PROTO_PERF_TYPE_LOCAL_CPU = UCP_PROTO_PERF_TYPE_FIRST,
+    UCP_PROTO_PERF_TYPE_LOCAL_NETWORK,
+    UCP_PROTO_PERF_TYPE_REMOTE_NETWORK,
+    UCP_PROTO_PERF_TYPE_REMOTE_CPU,
     UCP_PROTO_PERF_TYPE_LAST
 } ucp_proto_perf_type_t;
 
@@ -151,11 +144,13 @@ typedef struct {
     size_t                  cfg_thresh;   /* Configured protocol threshold */
     unsigned                cfg_priority; /* Priority of configuration */
     size_t                  min_length;   /* Minimal message size */
-    unsigned                num_ranges;   /* Number of entries in 'ranges' */
+    size_t                  max_length;   /* Maximal message size */
 
-    /* Performance estimation function for different message sizes */
-    ucp_proto_perf_range_t  ranges[UCP_PROTO_MAX_PERF_RANGES];
+    /* Performance estimation function for all perf types */
+    ucs_piecewise_func_t    perf[UCP_PROTO_PERF_TYPE_LAST];
 
+    /* Performance data tree */
+    ucp_proto_perf_node_t   *node;
 } ucp_proto_caps_t;
 
 

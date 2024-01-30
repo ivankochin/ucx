@@ -28,6 +28,7 @@
  * Start of the segment equals end of the previous segment + 1. The first
  * segment starts at 0.
  */
+// BUILD UCS_PIECEWISE_FUNC BASED ON DYNAMIC_ARRAY?????
 typedef struct {
     ucs_linear_func_t func; /* Function that applies on the segment range */
     size_t            end;  /* End of the segment (inlcusive) */
@@ -99,5 +100,19 @@ ucs_status_t ucs_piecewise_func_add_range(ucs_piecewise_func_t *pw_func,
  */
 ucs_status_t ucs_piecewise_func_add_inplace(ucs_piecewise_func_t *dst_pw_func,
                                             ucs_piecewise_func_t *src_pw_func);
+
+
+/**
+ * Construct new piecewise function in place of `dst_pw_func` which represents
+ * `max(dst_pw_func, src_pw_func)` function on the [0, SIZE_MAX] range.
+ *
+ * @param [inout]  dst_pw_func    First operand (result of the operation).
+ * @param [in]     src_pw_func    Second operand.
+ *
+ * @return UCS_OK in case of success, error otherwise.
+ */
+ucs_status_t
+ucs_piecewise_func_make_max_inplace(ucs_piecewise_func_t *dst_pw_func,
+                                    ucs_piecewise_func_t *src_pw_func);
 
 #endif

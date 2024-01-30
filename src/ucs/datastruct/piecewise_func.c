@@ -14,6 +14,9 @@
 #include <limits.h>
 #include <stdint.h>
 
+#define piecewise_func_head(_pw_func) \
+    ucs_list_head(&(_pw_func)->head, ucs_piecewise_segment_t, list);
+
 static ucs_piecewise_segment_t *
 ucs_piecewise_segment_insert_after(ucs_linear_func_t func, size_t end,
                                    ucs_list_link_t *prev)
@@ -63,11 +66,10 @@ static void ucs_piecewise_func_check(ucs_piecewise_func_t *pw_func)
     ucs_piecewise_segment_t *seg, *head;
 
     ucs_assertv(!ucs_list_is_empty(&pw_func->head), "pw_func=%p", pw_func);
-    head = ucs_list_head(&pw_func->head, ucs_piecewise_segment_t, list);
 
     ucs_piecewise_func_seg_foreach(pw_func, seg) {
         /* First segment has no prev */
-        if (seg != head) {
+        if (seg != piecewise_func_head(pw_func)) {
             ucs_assertv(seg->end > prev_end,
                         "pw_func=%p seg->end=%zu prev_end=%zu",
                         pw_func, seg->end, prev_end);
@@ -197,4 +199,50 @@ ucs_status_t ucs_piecewise_func_add_inplace(ucs_piecewise_func_t *dst_pw_func,
     }
 
     return UCS_OK;
+}
+
+ucs_status_t
+ucs_piecewise_func_make_max_inplace(ucs_piecewise_func_t *dst_pw_func,
+                                    ucs_piecewise_func_t *src_pw_func)
+{
+    size_t seg_start = 0;
+    ucs_piecewise_segment_t *dst_seg, *src_seg;
+    double cross_point, dst_value, src_value;
+    ucs_status_t status;
+    size_t seg_end;
+
+    ucs_piecewise_func_check(dst_pw_func);
+    ucs_piecewise_func_check(src_pw_func);
+
+    do {
+        dst_seg = ucs_piecewise_func_find_segment(dst_pw_func, seg_start);
+        src_seg = ucs_piecewise_func_find_segment(dst_pw_func, seg_start);
+        seg_end = ucs_min(dst_seg->end, src_seg->end);
+
+        status  = ucs_linear_func_intersect(dst_seg->func, src_seg->func,
+                                                           &cross_point);
+        if (status != UCS_OK) {
+            ucs_trace("No intersection since segments are parallel. "
+                      "dst_pw_func=%p dst_seg->func=%f + %f*x dst_seg->end=%ld "
+                      "src_pw_func=%p src_seg->func=%f + %f*x src_seg->end=%ld",
+                      dst_pw_func, dst_seg->func.c, dst_seg->func.m,
+                      src_pw_func, src_seg->func.c, src_seg->func.m);
+        // CALCULATIONS CAN BE INACCURATE DUE TO ROUNDING - IS THAT A PROBLEM??
+        } else if ((size_t)cross_point >= seg_start) {
+            seg_end = ucs_min(seg_end, (size_t)cross_point);
+        }
+
+        dst_value = ucs_linear_func_apply(dst_seg->func, seg_end);
+        src_value = ucs_linear_func_apply(src_seg->func, seg_end);
+
+        if (seg_end != dst_seg->end) {
+            status = ucs_piecewise_segment_split(dst_seg, seg_end);
+        }
+
+        if (src_value > dst_value) {
+            dst_seg->func = src_seg->func;
+        }
+
+        seg_start = seg_end + 1;
+    } while (seg_end != SIZE_MAX);
 }

@@ -16,6 +16,7 @@
 #include <ucp/core/ucp_context.h>
 #include <ucp/dt/dt.h>
 #include <ucs/datastruct/array.h>
+#include <ucs/datastruct/piecewise_func.h>
 
 #include <ucp/core/ucp_worker.inl>
 
@@ -74,7 +75,7 @@ static ucs_status_t ucp_proto_thresholds_next_range(
     ucp_proto_id_mask_t valid_proto_mask, disabled_proto_mask;
     ucs_linear_func_t proto_perf[UCP_PROTO_MAX_COUNT];
     char range_str[64], time_str[64], bw_str[64];
-    const ucp_proto_perf_range_t *range;
+    const ucs_piecewise_segment_t *segment;
     ucp_proto_id_t max_prio_proto_id;
     ucp_proto_perf_type_t perf_type;
     const ucp_proto_caps_t *caps;
@@ -82,13 +83,14 @@ static ucs_status_t ucp_proto_thresholds_next_range(
     ucp_proto_id_t proto_id;
     ucs_status_t status;
     size_t max_length;
+    double proto_perf_value, segment_value, intersection;
 
     /*
      * Find the valid and configured protocols starting from 'msg_length'.
      * Start with endpoint at SIZE_MAX, and narrow it down whenever we encounter
      * a protocol with different configuration.
      */
-    perf_type           = ucp_proto_select_param_perf_type(select_param);
+    // perf_type           = ucp_proto_select_param_perf_type(select_param);
     valid_proto_mask    = 0;
     disabled_proto_mask = 0;
     max_cfg_priority    = 0;
@@ -104,15 +106,41 @@ static ucs_status_t ucp_proto_thresholds_next_range(
             continue;
         }
 
-        /* Update 'max_length' by the maximal message length of the protocol */
-        range = ucp_proto_caps_range_find(caps, msg_length);
-        if (range == NULL) {
+        if (msg_length > caps->max_length) {
             continue;
         }
-
         valid_proto_mask    |= UCS_BIT(proto_id);
-        proto_perf[proto_id] = range->perf[perf_type];
-        max_length           = ucs_min(max_length, range->max_length);
+        proto_perf[proto_id] = UCS_LINEAR_FUNC_ZERO;
+
+        /* Update 'max_length' by the maximal message length of the protocol */
+        UCP_PROTO_PERF_TYPE_FOREACH(perf_type) {
+            // CONSIDER USING PIECEWISE FUNC MAX INPLACE INSTEAD OF THAT.
+            // ??? ADD TO THE MAX_INPLACE() ARRAY ARG WHICH DEFINES WHICH SEG ASSIGNED TO WHICH FUNC????
+            segment    = ucs_piecewise_func_find_segment(&caps->perf[perf_type],
+                                                         msg_length);
+            max_length = ucs_min(max_length, segment->end);
+
+            if (ucp_proto_select_is_multi(select_param)) {
+                /* Find max overhead among all the perf types */
+                // Consider switching to envelope!!!!
+                status           = ucs_linear_func_intersect(segment->func,
+                                                             proto_perf[proto_id],
+                                                             &intersection);
+                if ((status == UCS_OK) && (intersection > msg_length) && (intersection < max_length)) {
+                    max_length = (size_t)intersection;
+                }
+                // CAN WE COMPARE func.c INSTEAD OF POINT VALUE???
+                segment_value    = ucs_linear_func_apply(segment->func, msg_length);
+                proto_perf_value = ucs_linear_func_apply(proto_perf[proto_id], msg_length);
+                if (segment_value > proto_perf_value) {
+                    proto_perf[proto_id] = segment->func;
+                }
+            } else {
+                /* Summarize all the perf types functions */
+                ucs_linear_func_add_inplace(&proto_perf[proto_id], segment->func);
+            }
+
+        }
 
         /* Apply user threshold configuration */
         if (caps->cfg_thresh != UCS_MEMUNITS_AUTO) {
@@ -253,6 +281,13 @@ ucp_proto_select_init_protocols(ucp_worker_h worker,
         /* coverity[overrun-local] */
         init_params.proto_name = ucp_proto_id_field(proto_id, name);
 
+        status = ucp_proto_select_caps_init(proto_caps);
+        if (status != UCS_OK) {
+            ucs_error("Cannot initialize caps for proto %s",
+                      ucp_proto_id_field(proto_id, name));
+            continue;
+        }
+
         ucs_trace("trying %s", ucp_proto_id_field(proto_id, name));
         ucs_log_indent(1);
 
@@ -296,7 +331,7 @@ ucp_proto_select_init_protocols(ucp_worker_h worker,
         ucs_debug("no protocols found for %s", ucs_string_buffer_cstr(&strb));
         ucs_string_buffer_cleanup(&strb);
         status = UCS_ERR_NO_ELEM;
-        goto err_free_priv;
+        goto err_cleanup_protocols;
     }
 
     /* Finalize the shared priv buffer size */
@@ -307,7 +342,7 @@ ucp_proto_select_init_protocols(ucp_worker_h worker,
         tmp = ucs_realloc(proto_init->priv_buf, offset, "ucp_proto_priv");
         if (tmp == NULL) {
             status = UCS_ERR_NO_MEMORY;
-            goto err_free_priv;
+            goto err_cleanup_protocols;
         }
 
         proto_init->priv_buf = tmp;
@@ -315,36 +350,50 @@ ucp_proto_select_init_protocols(ucp_worker_h worker,
 
     return UCS_OK;
 
-err_free_priv:
-    ucs_free(proto_init->priv_buf);
+err_cleanup_protocols:
+    ucp_proto_select_cleanup_protocols(proto_init);
 err:
     return status;
 }
 
-static void
-ucp_proto_select_perf_ranges_cleanup(ucp_proto_perf_range_t *perf_ranges,
-                                     unsigned num_ranges)
-{
-    ucp_proto_perf_range_t *range;
-
-    ucs_assert(perf_ranges != NULL); /* For coverity */
-    ucs_carray_for_each(range, perf_ranges, num_ranges) {
-        ucp_proto_perf_node_deref(&range->node);
-    }
-}
-
 void ucp_proto_select_caps_reset(ucp_proto_caps_t *caps)
 {
+    ucp_proto_perf_type_t perf_type;
+
     caps->cfg_thresh   = UCS_MEMUNITS_AUTO;
     caps->cfg_priority = 0;
     caps->min_length   = 0;
-    caps->num_ranges   = 0;
+    caps->max_length   = SIZE_MAX; // ????
+
+    UCP_PROTO_PERF_TYPE_FOREACH(perf_type) {
+        caps->node = NULL;
+    }
 }
 
 void ucp_proto_select_caps_cleanup(ucp_proto_caps_t *caps)
 {
-    ucp_proto_select_perf_ranges_cleanup(caps->ranges, caps->num_ranges);
+    ucp_proto_perf_type_t perf_type;
+
+    UCP_PROTO_PERF_TYPE_FOREACH(perf_type) {
+        ucs_piecewise_func_destroy(&caps->perf[perf_type]);
+    }
+    ucp_proto_perf_node_deref(caps->node);
     ucp_proto_select_caps_reset(caps);
+}
+
+static inline ucs_status_t
+ucp_proto_select_caps_init(ucp_proto_caps_t *caps) {
+    ucp_proto_perf_type_t perf_type;
+    ucs_status_t status;
+
+    UCP_PROTO_PERF_TYPE_FOREACH(perf_type) {
+        status = ucs_piecewise_func_init(&caps->perf[perf_type]);
+        if (status != UCS_OK) {
+            return status;
+        }
+    }
+
+    return UCS_OK;
 }
 
 static void
@@ -377,18 +426,6 @@ static const void *ucp_proto_select_init_priv_buf(
     return UCS_PTR_BYTE_OFFSET(proto_init->priv_buf, priv_offset);
 }
 
-static const char *ucp_proto_select_node_name(ucp_proto_perf_type_t perf_type)
-{
-    switch (perf_type) {
-    case UCP_PROTO_PERF_TYPE_SINGLE:
-        return "best single operation";
-    case UCP_PROTO_PERF_TYPE_MULTI:
-        return "best multiple operations";
-    default:
-        ucs_fatal("invalid performance type %d", perf_type);
-    }
-}
-
 static ucs_status_t ucp_proto_select_elem_add_envelope(
         const ucp_proto_select_init_protocols_t *proto_init,
         ucp_worker_cfg_index_t ep_cfg_index,
@@ -401,15 +438,13 @@ static ucs_status_t ucp_proto_select_elem_add_envelope(
     ucp_proto_threshold_elem_t *thresh_elem;
     const char *node_name, *proto_name;
     ucp_proto_config_t *proto_config;
-    ucp_proto_perf_type_t perf_type;
     ucp_proto_perf_range_t *range;
     ucp_proto_id_t proto_id;
     const void *proto_priv;
     size_t range_start;
     char range_str[64];
 
-    perf_type = ucp_proto_select_param_perf_type(proto_init->select_param);
-    node_name = ucp_proto_select_node_name(perf_type);
+    node_name = ucp_proto_select_node_name(proto_init->select_param);
 
     range_start = msg_length;
     ucs_array_for_each(envelope_elem, envelope) {

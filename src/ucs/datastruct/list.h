@@ -196,6 +196,7 @@ static inline unsigned long ucs_list_length(ucs_list_link_t *head)
 /**
  * Iterate over members of the list.
  */
+// IF HEAD IS STORED AS SEPARATE FIELD (NOT A MEMBER), UCS_CONTAINER_OF CAN GO OUT OF ALLOCATED MEMORY BOUNDS!!!
 #define ucs_list_for_each(_elem, _head, _member) \
     for (_elem = ucs_container_of((_head)->next, ucs_typeof(*_elem), _member); \
         &(_elem)->_member != (_head); \
