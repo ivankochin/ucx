@@ -429,24 +429,21 @@ stages:
         test_perf: 0
         container: ubuntu2204_ib
         asan_check: yes
-
-
-  - stage: Valgrind
-    dependsOn: [Static_check]
-    jobs:
     - template: tests.yml
       parameters:
         name: roce
         demands: ucx_roce -equals yes
         test_perf: 0
-        valgrind_check: yes
+        container: ubuntu2204_ib
+        asan_check: yes
     - template: tests.yml
       parameters:
         name: roce_proto_disable
         demands: ucx_roce -equals yes
         test_perf: 0
         proto_enable: no
-        valgrind_check: yes
+        container: ubuntu2204_ib
+        asan_check: yes
 
 #  - stage: Cuda_compatible
 #    dependsOn: [Static_check]
