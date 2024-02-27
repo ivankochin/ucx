@@ -10,7 +10,7 @@
 #include "lane_type.h"
 
 #include <ucp/core/ucp_types.h>
-#include <ucs/datastruct/linear_func.h>
+#include <ucs/datastruct/piecewise_func.h>
 #include <ucs/datastruct/string_buffer.h>
 
 
@@ -147,6 +147,20 @@ typedef struct {
     ucp_proto_perf_node_t *node;
 } ucp_proto_perf_range_t;
 
+typedef struct {
+    ucp_proto_perf_node_t *node;
+    ucs_list_link_t        list;
+    size_t                 start;
+    size_t                 end;
+} ucp_proto_perf_node_list_t;
+
+typedef struct {
+    /* Performance estimation function for different message sizes */
+    ucs_piecewise_func_t       data[UCP_PROTO_PERF_TYPE_LAST];
+
+    /* List of performance nodes */
+    ucp_proto_perf_node_list_t nodes_list;
+} ucp_proto_perf_t;
 
 /**
  * UCP protocol capabilities (per operation parameters)
@@ -163,12 +177,11 @@ typedef struct {
     /* Minimal message size */
     size_t                  min_length;
 
-    /* Number of entries in 'ranges' */
-    unsigned                num_ranges;
+    /* Maximal message size */
+    size_t                  max_length;
 
-    /* Performance estimation function for different message sizes */
-    ucp_proto_perf_range_t  ranges[UCP_PROTO_MAX_PERF_RANGES];
-
+    /* Performance related data */
+    ucp_proto_perf_t perf;
 } ucp_proto_caps_t;
 
 

@@ -56,6 +56,12 @@ struct ucp_proto_perf_node {
          * Used when type == UCP_PROTO_PERF_NODE_TYPE_DATA
          */
         ucs_array_s(unsigned, ucp_proto_perf_node_data_t) data;
+
+        struct {
+            ucp_proto_perf_t                              *perf;
+            size_t                                        start;
+            size_t                                        end;
+        } data_perf;
     };
 };
 
@@ -524,6 +530,7 @@ ucp_proto_perf_node_new(ucp_proto_perf_node_type_t type, const char *name,
     perf_node->name     = name;
     perf_node->refcount = 1;
     ucs_array_init_dynamic(&perf_node->children);
+ucs_list_head_init(&perf_node->list);
     ucs_vsnprintf_safe(perf_node->desc, sizeof(perf_node->desc), desc_fmt, ap);
 
     return perf_node;
@@ -570,6 +577,15 @@ ucp_proto_perf_node_new_data(const char *name, const char *desc_fmt, ...)
 
     perf_node = UCP_PROTO_PERF_NODE_NEW(DATA, name, desc_fmt);
     ucs_array_init_dynamic(&perf_node->data);
+    return perf_node;
+}
+
+ucp_proto_perf_node_t *
+ucp_proto_perf_node_new_data_perf(const char *name, const char *desc_fmt, ...)
+{
+    ucp_proto_perf_node_t *perf_node;
+
+    perf_node = UCP_PROTO_PERF_NODE_NEW(DATA_PERF, name, desc_fmt);
     return perf_node;
 }
 
@@ -679,6 +695,23 @@ void ucp_proto_perf_node_add_data(ucp_proto_perf_node_t *perf_node,
     data->value = value;
 }
 
+
+void ucp_proto_perf_node_set_data_perf(ucp_proto_perf_node_t *perf_node,
+                                       ucp_proto_perf_t *perf, size_t start,
+                                       size_t end)
+{
+    if (perf_node == NULL) {
+        return;
+    }
+
+    ucs_assert(perf_node->type == UCP_PROTO_PERF_NODE_TYPE_DATA_PERF);
+
+    perf_node->data_perf.perf  = perf;
+    perf_node->data_perf.start = start;
+    perf_node->data_perf.end   = end;
+}
+
+
 void ucp_proto_perf_node_add_scalar(ucp_proto_perf_node_t *perf_node,
                                     const char *name, double value)
 {
@@ -786,8 +819,10 @@ ucp_proto_perf_graph_dump_recurs(ucp_proto_perf_node_t *perf_node,
                                  int highlight, ucs_string_buffer_t *strb)
 {
     UCS_STRING_BUFFER_ONSTACK(node_style, 64);
+    ucp_proto_perf_type_t perf_type;
     ucp_proto_perf_node_t **child_elem;
-    ucp_proto_perf_node_data_t *data;
+    ucp_proto_perf_node_data_t *data_ptr, data;
+    ucs_piecewise_segment_t *segment;
     int khret, id, child_index;
     int child_highlight;
     const char *shape;
@@ -818,6 +853,9 @@ ucp_proto_perf_graph_dump_recurs(ucp_proto_perf_node_t *perf_node,
     default:
     case UCP_PROTO_PERF_NODE_TYPE_DATA:
         shape = "note";
+        break;
+    case UCP_PROTO_PERF_NODE_TYPE_DATA_PERF:
+        shape = "hexagon";
         break;
     case UCP_PROTO_PERF_NODE_TYPE_SELECT:
         shape = "oval";
@@ -857,18 +895,48 @@ ucp_proto_perf_graph_dump_recurs(ucp_proto_perf_node_t *perf_node,
         !ucs_array_is_empty(&perf_node->data)) {
         ucs_string_buffer_appendf(strb,
                                   "<font face=\"calibri\" point-size=\"13\">");
-        ucs_array_for_each(data, &perf_node->data) {
-            if (ucs_linear_func_is_zero(data->value, UCP_PROTO_PERF_EPSILON)) {
+        ucs_array_for_each(data_ptr, &perf_node->data) {
+            if (ucs_linear_func_is_zero(data_ptr->value,
+                                        UCP_PROTO_PERF_EPSILON)) {
                 continue;
             }
 
             ucp_proto_perf_graph_str_append_line_break(strb);
-            ucp_proto_perf_graph_str_append_perf(data, strb);
+            ucp_proto_perf_graph_str_append_perf(data_ptr, strb);
         }
 
         ucp_proto_perf_graph_str_append_line_break(strb);
         ucs_string_buffer_appendf(strb, "</font>");
     }
+
+    /* Data perf entries */
+    if ((perf_node->type == UCP_PROTO_PERF_NODE_TYPE_DATA) &&
+        (perf_node->data_perf.perf) != NULL) {
+        ucs_assertv(perf_node->data_perf.start <= perf_node->data_perf.end,
+                    "perf_node=%p perf_node->data_perf.perf=%p "
+                    "start=%zu end=%zu", perf_node, perf_node->data_perf.perf,
+                    perf_node->data_perf.start, perf_node->data_perf.end);
+
+        ucs_string_buffer_appendf(strb,
+                                  "<font face=\"calibri\" point-size=\"13\">");
+
+        UCP_PROTO_PERF_TYPE_FOREACH(perf_type) {
+            segment = ucs_piecewise_func_find_segment(
+                    &perf_node->data_perf.perf->data[perf_type],
+                    perf_node->data_perf.start);
+            ucs_assertv(segment->end >= perf_node->data_perf.end,
+                        "segment->end=%zu perf_node->data_perf.end=%zu");
+
+            data.value = segment->func;
+            data.name  = ucp_proto_perf_type_names[perf_type];
+            ucp_proto_perf_graph_str_append_line_break(strb);
+            ucp_proto_perf_graph_str_append_perf(&data, strb);
+        }
+
+        ucp_proto_perf_graph_str_append_line_break(strb);
+        ucs_string_buffer_appendf(strb, "</font>");
+    }
+
 
     /* Terminate label and node */
     ucs_string_buffer_appendf(strb, ">];\n");

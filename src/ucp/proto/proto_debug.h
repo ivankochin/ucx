@@ -48,9 +48,11 @@
  * Protocol performance node types
  */
 typedef enum {
-    UCP_PROTO_PERF_NODE_TYPE_DATA,   /* Data node */
-    UCP_PROTO_PERF_NODE_TYPE_SELECT, /* Select one of children */
-    UCP_PROTO_PERF_NODE_TYPE_COMPOSE /* Compose new value from the children */
+    UCP_PROTO_PERF_NODE_TYPE_DATA,      /* Data node */
+    UCP_PROTO_PERF_NODE_TYPE_DATA_PERF, /* Data node that represents certain
+                                           range of ucp_proto_perf_t */
+    UCP_PROTO_PERF_NODE_TYPE_SELECT,    /* Select one of children */
+    UCP_PROTO_PERF_NODE_TYPE_COMPOSE    /* Compose new value from the children */
 } ucp_proto_perf_node_type_t;
 
 
@@ -153,6 +155,15 @@ void ucp_proto_select_elem_trace(ucp_worker_h worker,
                                  ucp_worker_cfg_index_t rkey_cfg_index,
                                  const ucp_proto_select_param_t *select_param,
                                  ucp_proto_select_elem_t *select_elem);
+
+
+void ucp_proto_perf_node_set_data_perf(ucp_proto_perf_node_t *perf_node,
+                                       ucp_proto_perf_t *perf, size_t start,
+                                       size_t end);
+
+
+ucp_proto_perf_node_t *
+ucp_proto_perf_node_new_data_perf(const char *name, const char *desc_fmt, ...);
 
 
 #endif

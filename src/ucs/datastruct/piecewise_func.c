@@ -81,7 +81,7 @@ static void ucs_piecewise_func_check(ucs_piecewise_func_t *pw_func)
 #endif
 }
 
-static ucs_piecewise_segment_t *
+ucs_piecewise_segment_t *
 ucs_piecewise_func_find_segment(const ucs_piecewise_func_t *pw_func, size_t x)
 {
     ucs_piecewise_segment_t *seg;
@@ -177,24 +177,43 @@ ucs_status_t ucs_piecewise_func_add_range(ucs_piecewise_func_t *pw_func,
     return UCS_OK;
 }
 
-ucs_status_t ucs_piecewise_func_add_inplace(ucs_piecewise_func_t *dst_pw_func,
-                                            ucs_piecewise_func_t *src_pw_func)
+ucs_status_t
+ucs_piecewise_func_add_inplace_bound(ucs_piecewise_func_t *dst_pw_func,
+                                     ucs_piecewise_func_t *src_pw_func,
+                                     size_t start, size_t end)
 {
-    size_t seg_start = 0;
+    size_t seg_start = 0, seg_end;
     ucs_piecewise_segment_t *seg;
     ucs_status_t status;
 
     ucs_piecewise_func_check(src_pw_func);
 
     ucs_piecewise_func_seg_foreach(src_pw_func, seg) {
-        status = ucs_piecewise_func_add_range(dst_pw_func, seg_start, seg->end,
-                                              seg->func);
-        if (status != UCS_OK) {
-            return status;
+        seg_end = seg->end;
+
+        if (seg_start > end) {
+            return;
+        }
+        if (seg_end >= start) {
+            seg_start = ucs_max(seg_start, start);
+            seg_end   = ucs_min(seg_end, end);
+            status    = ucs_piecewise_func_add_range(dst_pw_func, seg_start,
+                                                     seg_end, seg->func);
+            if (status != UCS_OK) {
+                return status;
+            }
         }
 
         seg_start = seg->end + 1;
     }
 
     return UCS_OK;
+}
+
+
+ucs_status_t ucs_piecewise_func_add_inplace(ucs_piecewise_func_t *dst_pw_func,
+                                            ucs_piecewise_func_t *src_pw_func)
+{
+    return ucs_piecewise_func_add_inplace_bound(dst_pw_func, src_pw_func,
+                                                0, SIZE_MAX);
 }

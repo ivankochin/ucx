@@ -100,4 +100,11 @@ ucs_status_t ucs_piecewise_func_add_range(ucs_piecewise_func_t *pw_func,
 ucs_status_t ucs_piecewise_func_add_inplace(ucs_piecewise_func_t *dst_pw_func,
                                             ucs_piecewise_func_t *src_pw_func);
 
+ucs_status_t
+ucs_piecewise_func_add_inplace_bound(ucs_piecewise_func_t *dst_pw_func,
+                                     ucs_piecewise_func_t *src_pw_func,
+                                     size_t start, size_t end);
+ucs_piecewise_segment_t *
+ucs_piecewise_func_find_segment(const ucs_piecewise_func_t *pw_func, size_t x);
+
 #endif
