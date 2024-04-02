@@ -83,7 +83,7 @@ ucp_proto_init_parallel_stages(const char *proto_name, size_t range_start,
                                unsigned num_stages, ucp_proto_caps_t *caps);
 
 
-void ucp_proto_init_memreg_time(const ucp_proto_common_init_params_t *params,
+void ucp_proto_init_memreg_time(const ucp_proto_init_params_t *params,
                                 ucp_md_map_t reg_md_map,
                                 ucs_linear_func_t *memreg_time,
                                 ucp_proto_perf_node_t **perf_node_p);

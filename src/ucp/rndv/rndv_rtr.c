@@ -36,8 +36,6 @@ typedef struct {
 static ucs_status_t
 ucp_proto_rndv_rtr_common_init(const ucp_proto_init_params_t *init_params,
                                uint64_t rndv_modes, size_t max_length,
-                               ucs_linear_func_t unpack_time,
-                               ucp_proto_perf_node_t *unpack_perf_node,
                                ucp_md_map_t md_map,
                                ucs_memory_type_t mem_type,
                                ucs_sys_device_t sys_dev)
@@ -61,9 +59,6 @@ ucp_proto_rndv_rtr_common_init(const ucp_proto_init_params_t *init_params,
                                UCP_PROTO_COMMON_INIT_FLAG_ERR_HANDLING,
         .super.exclude_map   = 0,
         .remote_op_id        = UCP_OP_ID_RNDV_SEND,
-        .unpack_time         = unpack_time,
-        .unpack_perf_node    = unpack_perf_node,
-        .perf_bias           = 0.0,
         .mem_info.type       = mem_type,
         .mem_info.sys_dev    = sys_dev,
         .ctrl_msg_name       = UCP_PROTO_RNDV_RTR_NAME,
@@ -110,11 +105,16 @@ static UCS_F_ALWAYS_INLINE void
 ucp_proto_rndv_rtr_hdr_pack(ucp_request_t *req, ucp_rndv_rtr_hdr_t *rtr,
                             void *buffer)
 {
-    rtr->sreq_id = req->send.rndv.remote_req_id;
-    rtr->rreq_id = ucp_send_request_get_id(req);
-    rtr->size    = req->send.state.dt_iter.length;
-    rtr->offset  = req->send.rndv.offset;
-    rtr->address = (uintptr_t)buffer;
+    const ucp_proto_config_t *proto_config       = req->send.proto_config;
+    const ucp_proto_select_param_t *select_param = &proto_config->select_param;
+
+    rtr->sreq_id  = req->send.rndv.remote_req_id;
+    rtr->rreq_id  = ucp_send_request_get_id(req);
+    rtr->size     = req->send.state.dt_iter.length;
+    rtr->offset   = req->send.rndv.offset;
+    rtr->address  = (uintptr_t)buffer;
+    rtr->sys_dev  = select_param->sys_dev;
+    rtr->mem_type = select_param->mem_type;
     ucs_assert(rtr->size > 0);
 }
 
@@ -208,8 +208,7 @@ ucp_proto_rndv_rtr_init(const ucp_proto_init_params_t *init_params)
         return UCS_ERR_UNSUPPORTED;
     }
 
-    status = ucp_proto_rndv_rtr_common_init(init_params, rndv_modes, SIZE_MAX,
-                                            UCS_LINEAR_FUNC_ZERO, NULL, 0,
+    status = ucp_proto_rndv_rtr_common_init(init_params, rndv_modes, SIZE_MAX, 0,
                                             init_params->select_param->mem_type,
                                             init_params->select_param->sys_dev);
     if (status != UCS_OK) {
@@ -427,10 +426,8 @@ ucp_proto_rndv_rtr_mtype_init(const ucp_proto_init_params_t *init_params)
     }
 
     status = ucp_proto_rndv_rtr_common_init(init_params, rndv_modes, frag_size,
-                                            unpack_time, unpack_perf_node,
                                             md_map, frag_mem_type,
                                             UCS_SYS_DEVICE_ID_UNKNOWN);
-    ucp_proto_perf_node_deref(&unpack_perf_node);
 
     rpriv->pack_cb       = ucp_proto_rndv_rtr_mtype_pack;
     rpriv->data_received = ucp_proto_rndv_rtr_mtype_data_received;

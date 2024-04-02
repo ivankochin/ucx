@@ -33,8 +33,10 @@ ucp_proto_rndv_am_init_common(ucp_proto_multi_init_params_t *params)
     ucp_proto_multi_priv_t *mpriv = params->super.super.priv;
     ucs_status_t status;
 
-    if (!ucp_proto_rndv_op_check(&params->super.super, UCP_OP_ID_RNDV_SEND,
-                                 0)) {
+    if (!ucp_proto_init_check_op(&params->super.super,
+                                 UCS_BIT(UCP_OP_ID_RNDV_SEND)) ||
+        (ucp_proto_select_op_flags(params->super.super.select_param) &
+         UCP_PROTO_SELECT_OP_FLAG_RNDV_PPLN_SEND)) {
         return UCS_ERR_UNSUPPORTED;
     }
 
@@ -54,7 +56,10 @@ ucp_proto_rndv_am_init_common(ucp_proto_multi_init_params_t *params)
     }
 
     *params->super.super.priv_size = ucp_proto_multi_priv_size(mpriv);
-    return UCS_OK;
+    return ucp_proto_rndv_add_ctrl_stages(&params->super.super, 
+                                          UCP_PROTO_RNDV_ATP_NAME,
+                                          UCS_BIT(UCP_RNDV_MODE_AM),
+                                          UCS_LINEAR_FUNC_ZERO);
 }
 
 static UCS_F_ALWAYS_INLINE void

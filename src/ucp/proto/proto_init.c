@@ -306,12 +306,12 @@ out:
     return status;
 }
 
-void ucp_proto_init_memreg_time(const ucp_proto_common_init_params_t *params,
+void ucp_proto_init_memreg_time(const ucp_proto_init_params_t *params,
                                 ucp_md_map_t reg_md_map,
                                 ucs_linear_func_t *memreg_time,
                                 ucp_proto_perf_node_t **perf_node_p)
 {
-    ucp_context_h context            = params->super.worker->context;
+    ucp_context_h context            = params->worker->context;
     ucp_proto_perf_node_t *perf_node = NULL;
     const uct_md_attr_v2_t *md_attr;
     ucp_md_index_t md_index;
@@ -482,7 +482,7 @@ ucp_proto_common_init_send_perf(const ucp_proto_common_init_params_t *params,
 
     /* Calculate sender overhead */
     if (params->flags & UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY) {
-        ucp_proto_init_memreg_time(params, reg_md_map, &send_overhead,
+        ucp_proto_init_memreg_time(&params->super, reg_md_map, &send_overhead,
                                    &child_perf_node);
         ucp_proto_perf_node_own_child(send_perf->node, &child_perf_node);
     } else if ((params->flags & UCP_PROTO_COMMON_INIT_FLAG_RKEY_PTR) ||
@@ -588,7 +588,7 @@ ucp_proto_common_init_recv_perf(const ucp_proto_common_init_params_t *params,
     } else {
         if (params->flags & UCP_PROTO_COMMON_INIT_FLAG_RECV_ZCOPY) {
             /* Receiver has to register its buffer */
-            ucp_proto_init_memreg_time(params, reg_md_map, &recv_overhead,
+            ucp_proto_init_memreg_time(&params->super, reg_md_map, &recv_overhead,
                                        &child_perf_node);
         } else {
             if (params->super.rkey_config_key == NULL) {
