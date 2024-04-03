@@ -357,8 +357,7 @@ void ucp_proto_select_param_str(const ucp_proto_select_param_t *select_param,
         [ucs_ilog2(UCP_OP_ATTR_FLAG_MULTI_SEND)] = "multi",
     };
     static const char *rndv_flag_names[] = {
-        [ucs_ilog2(UCP_PROTO_SELECT_OP_FLAG_RNDV_PPLN_SEND)] = "frag send",
-        [ucs_ilog2(UCP_PROTO_SELECT_OP_FLAG_RNDV_PPLN_RECV)] = "frag recv"
+        [ucs_ilog2(UCP_PROTO_SELECT_OP_FLAG_PPLN_FRAG)] = "frag"
     };
     static const char *am_flag_names[]   = {
         [ucs_ilog2(UCP_PROTO_SELECT_OP_FLAG_AM_EAGER)] = "egr",
@@ -491,6 +490,16 @@ void ucp_proto_select_info_str(ucp_worker_h worker,
 
         ucp_rkey_config_dump_brief(&worker->rkey_config[rkey_cfg_index].key,
                                    strb);
+
+        if (ucp_proto_select_is_rndv_op(select_param) &&
+            (select_param->op.reply.mem_type != UCS_MEMORY_TYPE_UNKNOWN) &&
+            (select_param->op.reply.mem_type != worker->rkey_config[rkey_cfg_index].key.mem_type)) {
+            ucs_string_buffer_appendf(strb, " (origin ");
+            ucp_proto_debug_mem_info_str(strb, select_param->op.reply.mem_type,
+                                         select_param->op.reply.sys_dev);
+            ucs_string_buffer_appendf(strb, ")");
+        }
+
     }
 
     if (ucp_proto_select_is_atomic_op(select_param)) {

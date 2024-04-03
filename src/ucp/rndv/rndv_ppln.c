@@ -33,32 +33,28 @@ typedef struct {
 
 
 static ucs_status_t
-ucp_proto_rndv_ppln_init(const ucp_proto_init_params_t *init_params,
-                         int rndv_mode, int ppln_op_flag)
+ucp_proto_rndv_ppln_init(const ucp_proto_init_params_t *init_params)
 {
-    static const double frag_overhead         = 30e-9;
-    ucp_worker_h worker                       = init_params->worker;
-    ucp_proto_rndv_ppln_priv_t *rpriv         = init_params->priv;
-    ucp_context_t *context                    = init_params->worker->context;
-    ucp_proto_perf_range_t *ppln_range        = &init_params->caps->ranges[0];
-    ucp_proto_common_init_params_t err_params = {
+    ucp_worker_h worker                          = init_params->worker;
+    ucp_proto_rndv_ppln_priv_t *rpriv            = init_params->priv;
+    const ucp_proto_select_param_t *select_param = init_params->select_param;
+    ucp_proto_caps_t *caps                       = init_params->caps;
+    const ucp_context_config_t *config           = &worker->context->config.ext;
+    ucp_proto_common_init_params_t err_params    = {
         .super = *init_params,
         .flags = 0
     };
     const ucp_proto_threshold_elem_t *thresh_elem;
     const ucp_proto_select_elem_t *select_elem;
-    ucp_proto_perf_range_t frag_range;
+    ucp_proto_perf_range_t *frag_range, *range;
     size_t frag_min_length, frag_max_length;
     ucp_worker_cfg_index_t rkey_cfg_index;
     ucp_proto_select_param_t sel_param;
     ucp_proto_select_t *proto_select;
-    ucs_linear_func_t ppln_ack_overhead;
-    ucp_proto_perf_node_t *ppln_node;
-    char frag_size_str[32];
+    size_t rndv_frag_size;
     ucs_status_t status;
-    size_t rndv_frag;
 
-    if ((init_params->select_param->dt_class != UCP_DATATYPE_CONTIG) ||
+    if ((select_param->dt_class != UCP_DATATYPE_CONTIG) ||
         !ucp_proto_init_check_op(init_params, UCP_PROTO_RNDV_OP_ID_MASK) ||
         !ucp_proto_common_init_check_err_handling(&err_params) ||
         ucp_proto_rndv_init_params_is_ppln_frag(init_params)) {
@@ -66,9 +62,9 @@ ucp_proto_rndv_ppln_init(const ucp_proto_init_params_t *init_params,
     }
 
     /* Select a protocol for rndv recv */
-    sel_param             = *init_params->select_param;
-    sel_param.op_id_flags = ucp_proto_select_op_id(init_params->select_param) |
-                            ppln_op_flag;
+    sel_param             = *select_param;
+    sel_param.op_id_flags = ucp_proto_select_op_id(select_param) |
+                            UCP_PROTO_SELECT_OP_FLAG_PPLN_FRAG;
     sel_param.op_attr     = ucp_proto_select_op_attr_pack(
             UCP_OP_ATTR_FLAG_MULTI_SEND);
 
@@ -87,60 +83,55 @@ ucp_proto_rndv_ppln_init(const ucp_proto_init_params_t *init_params,
         return UCS_ERR_UNSUPPORTED;
     }
 
+    rndv_frag_size = config->rndv_frag_size[UCS_MEMORY_TYPE_HOST]; // SHOULD HERE BE select_param->mem_type instead of HOST?? 
     /* Find the performance range of sending one fragment */
     if (!ucp_proto_select_get_valid_range(select_elem->thresholds,
                                           &frag_min_length, &frag_max_length)) {
         return UCS_ERR_UNSUPPORTED;
     }
 
-    rndv_frag = context->config.ext.rndv_frag_size[UCS_MEMORY_TYPE_HOST];
-    if(frag_min_length > rndv_frag || frag_max_length < rndv_frag) {
+    if ((frag_min_length > rndv_frag_size) ||
+        (frag_max_length < rndv_frag_size)) {
         return UCS_ERR_UNSUPPORTED;
     }
-
-    frag_range  = *ucp_proto_perf_range_search(select_elem, rndv_frag);
-    thresh_elem = ucp_proto_select_thresholds_search(select_elem, rndv_frag);
-
-    ucs_trace("rndv_ppln frag %s" UCP_PROTO_PERF_FUNC_TYPES_FMT,
-              ucs_memunits_to_str(rpriv->frag_size, frag_size_str,
-                                  sizeof(frag_size_str)),
-              UCP_PROTO_PERF_FUNC_TYPES_ARG(frag_range.perf));
-
-    /* Add the single range of the pipeline protocol to ppln_caps */
-    init_params->caps->cfg_thresh   = thresh_elem->proto_config.cfg_thresh;
-    init_params->caps->cfg_priority = 0;
-    init_params->caps->min_length   = rndv_frag + 1;
-    init_params->caps->num_ranges   = 0;
-    ucp_proto_common_add_ppln_range(init_params->caps, &frag_range, SIZE_MAX);
-
-    /* Create data node as parent for pipeline to store perf and proto name */
-    ppln_node = ppln_range->node;
-    ppln_range->node = ucp_proto_perf_node_new_data(init_params->proto_name,
-                                                    NULL);
-    ucp_proto_perf_range_add_data(ppln_range);
-    ucp_proto_perf_node_add_child(ppln_range->node, ppln_node);
-
-    /* Initialize private data */
-    *init_params->priv_size = sizeof(*rpriv);
-    rpriv->frag_proto       = *select_elem;
-    rpriv->frag_size        = rndv_frag;
 
     status = ucp_proto_rndv_ack_priv_init(init_params, &rpriv->ack);
     if (status != UCS_OK) {
         return status;
     }
 
-    /* Add ATS ppln overhead */
-    ppln_ack_overhead = ucs_linear_func_make(frag_overhead,
-                                             frag_overhead / rndv_frag);
+    thresh_elem = ucp_proto_select_thresholds_search(select_elem,
+                                                     rndv_frag_size);
 
-    /* Add RTS and ATS overheads */
-    status = ucp_proto_rndv_add_ctrl_stages(init_params,
-                                            UCP_PROTO_RNDV_ATS_NAME,
-                                            UCS_BIT(rndv_mode),
-                                            ppln_ack_overhead);
+    /* Add the single range of the pipeline protocol to ppln_caps */
+    caps->cfg_thresh   = thresh_elem->proto_config.cfg_thresh;
+    caps->cfg_priority = 0;
+    caps->min_length   = rndv_frag_size + 1;
+    caps->num_ranges   = 0;
 
-    return status;
+    // MOVE TO SEPARATE FUNC TO AVOID CODE DUPLICATION WITH RNDV/RTS/RTR !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    frag_range = select_elem->perf_ranges;
+    do {
+        if (frag_range->max_length < caps->min_length) {
+            continue;
+        }
+
+        range  = &caps->ranges[caps->num_ranges];
+        *range = *frag_range;
+        range->node = ucp_proto_perf_node_new_data(init_params->proto_name,
+                                                   "proto lookup");
+        ucp_proto_perf_range_add_data(range);
+        ucp_proto_perf_node_add_child(range->node, frag_range->node);
+
+        ++caps->num_ranges;
+    } while ((frag_range++)->max_length < frag_max_length);
+
+    /* Initialize private data */
+    *init_params->priv_size = sizeof(*rpriv);
+    rpriv->frag_proto       = *select_elem;
+    rpriv->frag_size        = rndv_frag_size;
+
+    return UCS_OK;
 }
 
 static void ucp_proto_rndv_ppln_query(const ucp_proto_query_params_t *params,
@@ -306,12 +297,19 @@ static size_t ucp_proto_rndv_ppln_pack_ack(void *dest, void *arg)
 static ucs_status_t
 ucp_proto_rndv_send_ppln_init(const ucp_proto_init_params_t *init_params)
 {
+    uint8_t reply_memory_type = init_params->select_param->op.reply.mem_type;
+
     if (!ucp_proto_init_check_op(init_params, UCS_BIT(UCP_OP_ID_RNDV_SEND))) {
         return UCS_ERR_UNSUPPORTED;
     }
 
-    return ucp_proto_rndv_ppln_init(init_params, UCP_RNDV_MODE_PUT_PIPELINE,
-                                    UCP_PROTO_SELECT_OP_FLAG_RNDV_PPLN_SEND);
+    if ((reply_memory_type != UCS_MEMORY_TYPE_UNKNOWN) &&
+        (init_params->rkey_config_key->mem_type != reply_memory_type)) {
+        ucs_trace("Skip send PPLN since rtr/mtype proto detected");
+        return UCS_ERR_UNSUPPORTED;
+    }
+
+    return ucp_proto_rndv_ppln_init(init_params);
 }
 
 static ucs_status_t
@@ -346,8 +344,7 @@ ucp_proto_rndv_recv_ppln_init(const ucp_proto_init_params_t *init_params)
         return UCS_ERR_UNSUPPORTED;
     }
 
-    return ucp_proto_rndv_ppln_init(init_params, UCP_RNDV_MODE_GET_PIPELINE,
-                                    UCP_PROTO_SELECT_OP_FLAG_RNDV_PPLN_RECV);
+    return ucp_proto_rndv_ppln_init(init_params);
 }
 
 static ucs_status_t

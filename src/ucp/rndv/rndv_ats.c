@@ -48,12 +48,7 @@ ucp_proto_rndv_ats_init(const ucp_proto_init_params_t *init_params)
         return status;
     }
 
-    status = ucp_proto_rndv_add_ctrl_stages(init_params,
-                                            UCP_PROTO_RNDV_ATS_NAME,
-                                            UCS_BIT(UCP_RNDV_MODE_AUTO),
-                                            UCS_LINEAR_FUNC_ZERO);
-
-    return status;
+    return ucp_proto_rndv_predict_prev_stages(init_params);
 }
 
 static void

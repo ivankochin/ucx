@@ -91,11 +91,7 @@ ucp_proto_rndv_rkey_ptr_init(const ucp_proto_init_params_t *init_params)
         return status;
     }
 
-    status = ucp_proto_rndv_add_ctrl_stages(init_params,
-                                            UCP_PROTO_RNDV_ATS_NAME,
-                                            rndv_modes, UCS_LINEAR_FUNC_ZERO);
-
-    return status;
+    return ucp_proto_rndv_predict_prev_stages(init_params);
 }
 
 static void
@@ -274,11 +270,7 @@ ucp_proto_rndv_rkey_ptr_mtype_init(const ucp_proto_init_params_t *init_params)
         return status;
     }
 
-    status = ucp_proto_rndv_add_ctrl_stages(init_params,
-                                            UCP_PROTO_RNDV_ATP_NAME,
-                                            rndv_modes, UCS_LINEAR_FUNC_ZERO);
-
-    return status;
+    return ucp_proto_rndv_predict_prev_stages(init_params);
 }
 
 static ucs_status_t ucp_proto_rndv_rkey_ptr_mtype_completion(ucp_request_t *req)

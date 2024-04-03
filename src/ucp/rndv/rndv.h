@@ -65,7 +65,7 @@ typedef struct {
     uint8_t  mem_type;
 
     /* Recv buffer system device */
-    uint8_t  sys_dev;
+    uint8_t  sys_dev; // CONSIDER REMOVING SYS_DEV FROM RTR !!!!!!
 } UCS_S_PACKED ucp_rndv_rtr_hdr_t;
 
 
