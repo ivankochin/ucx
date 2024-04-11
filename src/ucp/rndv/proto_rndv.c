@@ -612,7 +612,8 @@ ucp_proto_rndv_predict_prev_stages(const ucp_proto_init_params_t *params)
             (params->rkey_config_key->mem_type != select_param->op.reply.mem_type)) {
             pipeline_stages = 2;
             status = ucp_proto_init_buffer_copy_time(
-                    params->worker, "rtr/mtype unpack", select_param->mem_type,
+                    params->worker, "rtr/mtype unpack",
+                    params->rkey_config_key->mem_type,
                     select_param->op.reply.mem_type, UCT_EP_OP_PUT_ZCOPY,
                     &unpack_time, &unpack_node);
             if (status != UCS_OK) {
@@ -650,14 +651,18 @@ ucp_proto_rndv_predict_prev_stages(const ucp_proto_init_params_t *params)
     if (status != UCS_OK) {
         return status;
     }
+    parallel_stages[num_stages++] = &ack_range;
 
     /* Create new caps by adding parallel stages to the proto caps */
     min_length          = params->caps->min_length;
     tmp_caps            = *params->caps;
     tmp_caps.num_ranges = 0;
     for (i = 0; i < params->caps->num_ranges; ++i) {
-        max_length                   = params->caps->ranges[i].max_length;
         parallel_stages[proto_stage] = &params->caps->ranges[i];
+        max_length                   = params->caps->ranges[i].max_length;
+        if (pipeline_stages > 0) {
+            max_length = ucs_min(max_length, rndv_frag_size);
+        }
 
         status = ucp_proto_init_parallel_stages(params->proto_name,
                                                 min_length, max_length,
@@ -668,9 +673,7 @@ ucp_proto_rndv_predict_prev_stages(const ucp_proto_init_params_t *params)
             return status;
         }
 
-        if ((pipeline_stages > 0) && (max_length >= rndv_frag_size)) {
-            tmp_caps.ranges[i].max_length = rndv_frag_size;
-            frag_range                    = params->caps->ranges[i];
+        if ((pipeline_stages > 0) && (max_length == rndv_frag_size)) {
             break;
         }
 
@@ -679,6 +682,7 @@ ucp_proto_rndv_predict_prev_stages(const ucp_proto_init_params_t *params)
     *params->caps = tmp_caps;
 
     if (pipeline_stages > 0) {
+        frag_range          = params->caps->ranges[params->caps->num_ranges - 1];
         tmp_caps.num_ranges = 0; /* Cleanup tmp_caps ranges */
         if (pipeline_stages > 1) {
             /* RTR is also part of pipeline */
