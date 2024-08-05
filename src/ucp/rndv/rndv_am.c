@@ -139,7 +139,7 @@ ucp_proto_rndv_am_bcopy_abort(ucp_request_t *req, ucs_status_t status)
 
 ucp_proto_t ucp_rndv_am_bcopy_proto = {
     .name     = "rndv/am/bcopy",
-    .desc     = "fragmented " UCP_PROTO_COPY_IN_DESC " " UCP_PROTO_COPY_OUT_DESC,
+    .desc     = "rndv am fragmented " UCP_PROTO_COPY_IN_DESC " " UCP_PROTO_COPY_OUT_DESC,
     .flags    = 0,
     .probe    = ucp_rndv_am_bcopy_probe,
     .query    = ucp_proto_multi_query,
@@ -215,7 +215,7 @@ ucp_rndv_am_zcopy_proto_abort(ucp_request_t *req, ucs_status_t status)
 
 ucp_proto_t ucp_rndv_am_zcopy_proto = {
     .name     = "rndv/am/zcopy",
-    .desc     = UCP_PROTO_ZCOPY_DESC,
+    .desc     = "rndv am " UCP_PROTO_ZCOPY_DESC,
     .flags    = 0,
     .probe    = ucp_rndv_am_zcopy_probe,
     .query    = ucp_proto_multi_query,
